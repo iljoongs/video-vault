@@ -1,0 +1,178 @@
+using System.Collections.ObjectModel;
+using System.IO;
+using System.Windows;
+using Microsoft.Win32;
+
+namespace VideoVault;
+
+/// <summary>
+/// 폴더를 열어 동영상 파일을 스캔하고, 선택한 파일을 관리 리스트에 추가하는 서브 창.
+/// `_managedItems`는 `MainWindow`와 같은 컬렉션을 그대로 참조하므로, 여기서 추가/변경한 내용이
+/// 즉시 메인창에도 반영된다(같은 `ObservableCollection` 인스턴스를 공유하기 때문).
+/// </summary>
+public partial class FolderListWindow : Window
+{
+    private static readonly string[] VideoExtensions =
+    {
+        ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".mpg", ".mpeg"
+    };
+
+    private readonly ObservableCollection<ManagedVideoItem> _managedItems;
+    private string? _currentFolder;
+
+    /// <summary>이 창에서 마지막으로 열었던(또는 초기화로 비운) 폴더. 호출자가 설정 저장에 사용한다.</summary>
+    public string? LastFolder => _currentFolder;
+
+    public FolderListWindow(ObservableCollection<ManagedVideoItem> managedItems, string? initialFolder)
+    {
+        InitializeComponent();
+        _managedItems = managedItems;
+
+        if (initialFolder is not null && Directory.Exists(initialFolder))
+        {
+            _currentFolder = initialFolder;
+            FolderPathText.Text = _currentFolder;
+            LoadVideoFiles();
+        }
+    }
+
+    private void OpenFolder_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFolderDialog { Title = "동영상 폴더 선택" };
+
+        if (dialog.ShowDialog() == true)
+        {
+            _currentFolder = dialog.FolderName;
+            FolderPathText.Text = _currentFolder;
+            LoadVideoFiles();
+        }
+    }
+
+    private void Refresh_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentFolder is null)
+        {
+            MessageBox.Show("먼저 폴더를 여세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        LoadVideoFiles();
+    }
+
+    private void ResetFolderList_Click(object sender, RoutedEventArgs e)
+    {
+        _currentFolder = null;
+        FolderPathText.Text = "폴더를 선택하세요.";
+        FolderListView.ItemsSource = null;
+        FolderFileCountText.Text = string.Empty;
+    }
+
+    private void LoadVideoFiles()
+    {
+        if (_currentFolder is null || !Directory.Exists(_currentFolder))
+        {
+            return;
+        }
+
+        var items = new DirectoryInfo(_currentFolder)
+            .EnumerateFiles("*", SearchOption.AllDirectories)
+            .Where(f => VideoExtensions.Contains(f.Extension.ToLowerInvariant()))
+            .OrderBy(f => f.Name)
+            .Select(f => new VideoFileItem(f))
+            .ToList();
+
+        FolderListView.ItemsSource = items;
+        FolderFileCountText.Text = $"파일 {items.Count}개";
+    }
+
+    private void DeleteFile_Click(object sender, RoutedEventArgs e)
+    {
+        if (FolderListView.SelectedItem is not VideoFileItem item)
+        {
+            MessageBox.Show("삭제할 파일을 선택하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var result = MessageBox.Show(
+            $"'{item.FileName}' 파일을 실제로 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.",
+            "삭제 확인",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (result != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            File.Delete(item.FullPath);
+            LoadVideoFiles();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"파일을 삭제할 수 없습니다.\n{ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void AddToManagedList_Click(object sender, RoutedEventArgs e)
+    {
+        if (FolderListView.SelectedItems.Count == 0)
+        {
+            MessageBox.Show("관리 리스트에 추가할 파일을 선택하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var activePaths = _managedItems
+            .Where(m => !m.IsArchived)
+            .Select(m => m.FullPath)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var added = 0;
+        var reused = 0;
+
+        foreach (var selected in FolderListView.SelectedItems.Cast<VideoFileItem>())
+        {
+            if (activePaths.Contains(selected.FullPath))
+            {
+                continue;
+            }
+
+            var archivedMatch = _managedItems.FirstOrDefault(m =>
+                m.IsArchived && string.Equals(m.FileName, selected.FileName, StringComparison.Ordinal));
+
+            if (archivedMatch is not null)
+            {
+                var result = MessageBox.Show(
+                    $"'{selected.FileName}' 파일에 대해 이전에 관리하던 데이터가 있습니다.\n" +
+                    $"(재생횟수 {archivedMatch.PlayCount}, 태그 {archivedMatch.Tags.Count}개)\n\n" +
+                    "기존 데이터를 재사용하시겠습니까?\n예 = 기존 데이터 재사용(경로만 새로 갱신), 아니요 = 새 항목으로 추가",
+                    "기존 데이터 발견",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                if (result == MessageBoxResult.Yes)
+                {
+                    archivedMatch.FullPath = selected.FullPath;
+                    archivedMatch.SizeBytes = selected.SizeBytes;
+                    archivedMatch.ModifiedDate = selected.ModifiedDate;
+                    archivedMatch.IsArchived = false;
+                    activePaths.Add(selected.FullPath);
+                    reused++;
+                    continue;
+                }
+            }
+
+            _managedItems.Add(ManagedVideoItem.FromFolderItem(selected));
+            activePaths.Add(selected.FullPath);
+            added++;
+        }
+
+        if (added == 0 && reused == 0)
+        {
+            MessageBox.Show("선택한 파일은 이미 관리 리스트에 있습니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+    }
+
+    private void Close_Click(object sender, RoutedEventArgs e) => Close();
+}

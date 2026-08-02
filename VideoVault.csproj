@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <ApplicationIcon>AppIcon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="AppIcon.ico" />
+  </ItemGroup>
+
+  <!-- 빌드 결과물에 로컬 개발용 서명을 자동으로 적용한다 (Sign-Build.ps1 참고, CLAUDE.md '코드 서명' 절). -->
+  <Target Name="SignBuildOutput" AfterTargets="Build">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\Sign-Build.ps1&quot; -TargetDir &quot;$(TargetDir)\&quot; -TargetName &quot;$(TargetName)&quot;"
+          ContinueOnError="WarnAndContinue" />
+  </Target>
+
+</Project>

@@ -1,0 +1,25 @@
+<Window x:Class="VideoVault.RenameWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="이름 변경" Height="150" Width="420"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="새 파일명 (확장자 포함):" Margin="0,0,0,5"/>
+        <TextBox x:Name="NameBox" Grid.Row="1"/>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Content="확인" Width="80" Margin="0,0,5,0" Click="Ok_Click" IsDefault="True"/>
+            <Button Content="취소" Width="80" IsCancel="True"/>
+        </StackPanel>
+    </Grid>
+</Window>

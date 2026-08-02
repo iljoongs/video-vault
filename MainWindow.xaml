@@ -1,0 +1,426 @@
+<Window x:Class="VideoVault.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:VideoVault"
+        mc:Ignorable="d"
+        Title="VideoVault - 동영상 파일 관리자"
+        Icon="AppIcon.ico"
+        Height="1200" Width="1720"
+        WindowStartupLocation="CenterScreen"
+        PreviewKeyDown="MainWindow_PreviewKeyDown"
+        Closing="MainWindow_Closing"
+        Loaded="MainWindow_Loaded">
+    <Window.Resources>
+        <local:ThumbnailPathConverter x:Key="ThumbnailPathConverter"/>
+        <ContextMenu x:Key="ManagedItemContextMenu">
+            <MenuItem Header="재생" Click="PlayManaged_Click"/>
+            <MenuItem Header="이름변경 (F2)" Click="RenameManaged_Click"/>
+            <MenuItem Header="속성 (F1)" Click="PropertiesManaged_Click"/>
+            <Separator/>
+            <MenuItem Header="복구" Click="RestoreManaged_Click"/>
+            <MenuItem Header="삭제 (Del)" Click="RemoveFromManagedList_Click"/>
+            <MenuItem Header="완전삭제" Click="PermanentlyDeleteManaged_Click"/>
+        </ContextMenu>
+        <DataTemplate x:Key="SizeCellTemplate">
+            <TextBlock Text="{Binding SizeDisplay}" HorizontalAlignment="Right" TextAlignment="Right"/>
+        </DataTemplate>
+        <DataTemplate x:Key="PlayCountCellTemplate">
+            <TextBlock Text="{Binding PlayCount}" HorizontalAlignment="Center" TextAlignment="Center"/>
+        </DataTemplate>
+        <DataTemplate x:Key="HasThumbnailCellTemplate">
+            <Image Source="{x:Static local:WindowsIconHelper.PngFileIcon}" Width="16" Height="16" HorizontalAlignment="Center">
+                <Image.Style>
+                    <Style TargetType="Image">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasThumbnail}" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Image.Style>
+            </Image>
+        </DataTemplate>
+        <DataTemplate x:Key="TagsCellTemplate">
+            <Border Background="Transparent" Cursor="Hand" ToolTip="클릭하여 속성 열기" MouseLeftButtonUp="TagsCell_Click">
+                <ItemsControl ItemsSource="{Binding Tags}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="#E0E0E0" CornerRadius="8" Padding="6,2" Margin="2">
+                                <TextBlock Text="{Binding}" FontSize="11"/>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Border>
+        </DataTemplate>
+    </Window.Resources>
+    <DockPanel>
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="파일(_F)">
+                <MenuItem Header="폴더 목록(_O)" Click="OpenFolderList_Click"/>
+                <Separator/>
+                <MenuItem Header="저장(_S)" InputGestureText="Ctrl+S" Click="SaveNow_Click"/>
+                <MenuItem Header="관리 리스트 열기(_L)" Click="OpenManagedList_Click"/>
+                <MenuItem Header="관리 리스트를 다른 이름으로 저장(_A)" Click="SaveAsManagedList_Click"/>
+                <Separator/>
+                <MenuItem Header="종료(_X)" Click="Exit_Click"/>
+            </MenuItem>
+            <MenuItem Header="편집(_E)">
+                <MenuItem Header="속성(_E)" Click="PropertiesManaged_Click"/>
+                <MenuItem Header="이름변경(_N)" Click="RenameManaged_Click"/>
+                <MenuItem Header="제거(_R)" Click="RemoveFromManagedList_Click"/>
+            </MenuItem>
+            <MenuItem Header="보기(_V)">
+                <MenuItem x:Name="ListViewModeMenuItem" Header="리스트 보기(_L)" IsCheckable="True" IsChecked="True" Click="ListViewModeMenuItem_Click"/>
+                <MenuItem x:Name="IconViewModeMenuItem" Header="아이콘 보기(_I)" IsCheckable="True" Click="IconViewModeMenuItem_Click"/>
+            </MenuItem>
+            <MenuItem Header="재생(_P)">
+                <MenuItem Header="선택 항목 재생(_P)" Click="PlayManaged_Click"/>
+            </MenuItem>
+            <MenuItem Header="도구(_T)">
+                <MenuItem Header="태그 관리(_T)" Click="ManageTags_Click"/>
+                <MenuItem Header="배우 관리(_A)" Click="ManageActors_Click"/>
+            </MenuItem>
+        </Menu>
+
+        <Grid Margin="10">
+        <!-- ===================== 관리 리스트 (영속 데이터, JSON, 자동 저장) ===================== -->
+        <!-- 폴더 목록은 서브 창(FolderListWindow, "목록 추가" 버튼/메뉴로 열림)으로 분리됨 -->
+        <Border BorderBrush="Gray" BorderThickness="1" Padding="10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" HorizontalAlignment="Left" Margin="0,0,0,10">
+                    <TextBlock Text="관리 리스트" FontWeight="Bold" FontSize="16"/>
+                    <TextBlock x:Name="ManagedCountText" Foreground="Gray" FontSize="12" Margin="0,2,0,0" TextAlignment="Left"/>
+                </StackPanel>
+
+                <!-- 선택된 항목의 썸네일 뷰어 (상단 오른쪽). 클릭하면 원본 이미지를 보여주고, 드래그 앤 드롭으로 썸네일을 지정할 수 있다. -->
+                <StackPanel x:Name="ThumbnailPanel" Grid.Row="0" Grid.RowSpan="4" Grid.Column="1"
+                            Width="320" Margin="15,0,0,0" VerticalAlignment="Top">
+                    <Border Width="320" Height="240" Background="#F0F0F0" BorderBrush="Gray" BorderThickness="1" Cursor="Hand"
+                            ToolTip="클릭: 원본 이미지 보기 / 드래그 앤 드롭: 썸네일 지정"
+                            AllowDrop="True" Drop="ThumbnailViewer_Drop" DragOver="ThumbnailViewer_DragOver"
+                            MouseLeftButtonUp="ThumbnailViewer_MouseLeftButtonUp">
+                        <Grid>
+                            <Image Source="{Binding ThumbnailPath, Converter={StaticResource ThumbnailPathConverter}}" Stretch="Uniform">
+                                <Image.Style>
+                                    <Style TargetType="Image">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasThumbnail}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Image.Style>
+                            </Image>
+                            <TextBlock Text="🎬" FontSize="64" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasThumbnail}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
+                    <Button Content="저장 (Ctrl+S)" Padding="10,5" Margin="0,0,5,0" Click="SaveNow_Click"/>
+                    <Button Content="열기" Padding="10,5" Margin="0,0,5,0" Click="OpenManagedList_Click"/>
+                    <Button Content="다른 이름으로 저장" Padding="10,5" Margin="0,0,15,0" Click="SaveAsManagedList_Click"/>
+                    <Button Content="목록 추가" Padding="10,5" Margin="0,0,5,0" Click="OpenFolderList_Click"/>
+                    <Button Content="태그 관리" Padding="10,5" Margin="0,0,5,0" Click="ManageTags_Click"/>
+                    <Button Content="배우 관리" Padding="10,5" Margin="0,0,15,0" Click="ManageActors_Click"/>
+                    <TextBlock x:Name="LibraryPathText" VerticalAlignment="Center" Foreground="Gray" TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+
+                <!-- 검색(필터) 영역: 파일명 검색 + 태그 필터 -->
+                <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
+                    <TextBlock Text="파일명 검색:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                    <TextBox x:Name="NameFilterTextBox" Width="220" Margin="0,0,15,0" TextChanged="NameFilterTextBox_TextChanged"/>
+                    <Button x:Name="TagFilterButton" Content="태그 필터" Padding="10,5" Margin="0,0,5,0" Click="TagFilterButton_Click"/>
+                    <Button x:Name="ActorFilterButton" Content="배우 필터" Padding="10,5" Margin="0,0,15,0" Click="ActorFilterButton_Click"/>
+                    <CheckBox x:Name="ShowRemovedItemsCheckBox" Content="제거된 항목도 표시" VerticalAlignment="Center" Margin="0,0,15,0" Checked="ShowRemovedItemsCheckBox_Changed" Unchecked="ShowRemovedItemsCheckBox_Changed"/>
+                    <Button Content="필터 초기화" Padding="10,5" Click="ClearAllFilters_Click"/>
+                </StackPanel>
+
+                <DockPanel Grid.Row="3" Margin="0,0,0,10">
+                    <Button DockPanel.Dock="Left" Content="속성 (F1)" Padding="10,5" Margin="0,0,5,0" Click="PropertiesManaged_Click"/>
+                    <Button DockPanel.Dock="Left" Content="이름변경 (F2)" Padding="10,5" Margin="0,0,5,0" Click="RenameManaged_Click"/>
+                    <Button DockPanel.Dock="Left" Content="재생" Padding="10,5" Margin="0,0,5,0" Click="PlayManaged_Click"/>
+                    <Button DockPanel.Dock="Left" Content="제거" Padding="10,5" Margin="0,0,20,0" Click="RemoveFromManagedList_Click"/>
+                    <RadioButton x:Name="ListViewModeRadio" DockPanel.Dock="Left" Content="리스트 보기" GroupName="ViewMode" IsChecked="True" VerticalAlignment="Center" Margin="0,0,10,0" Checked="ViewMode_Changed"/>
+                    <RadioButton x:Name="IconViewModeRadio" DockPanel.Dock="Left" Content="아이콘 보기" GroupName="ViewMode" VerticalAlignment="Center" Margin="0,0,15,0" Checked="ViewMode_Changed"/>
+                    <TextBlock Text="(헤더를 우클릭하면 표시할 컬럼 선택, 클릭하면 정렬 / 더블클릭으로 재생 / F1=속성, F2=이름변경, Ctrl+S=저장)"
+                               Foreground="Gray" FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                </DockPanel>
+
+                <Grid Grid.Row="4" Grid.ColumnSpan="2">
+                    <ListView x:Name="ManagedListView" SelectionMode="Extended" SelectionChanged="ManagedSelection_Changed">
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="ListViewItem">
+                                <EventSetter Event="PreviewMouseRightButtonDown" Handler="ManagedListItem_PreviewMouseRightButtonDown"/>
+                                <EventSetter Event="MouseDoubleClick" Handler="ManagedListRow_MouseDoubleClick"/>
+                                <Setter Property="ContextMenu" Value="{StaticResource ManagedItemContextMenu}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsArchived}" Value="True">
+                                        <Setter Property="Foreground" Value="Gray"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ListView.ItemContainerStyle>
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn x:Name="FileNameColumn" Header="파일명" Width="300">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding FileName}" VerticalAlignment="Center" ToolTip="더블클릭하여 재생"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+
+                    <ListBox x:Name="ManagedIconView" Visibility="Collapsed" SelectionMode="Extended" SelectionChanged="ManagedSelection_Changed"
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <EventSetter Event="PreviewMouseRightButtonDown" Handler="ManagedIconItem_PreviewMouseRightButtonDown"/>
+                                <Setter Property="ContextMenu" Value="{StaticResource ManagedItemContextMenu}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsArchived}" Value="True">
+                                        <Setter Property="Foreground" Value="Gray"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel/>
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border Width="160" Height="225" Margin="5" BorderBrush="LightGray" BorderThickness="1" Padding="5">
+                                    <StackPanel>
+                                        <Border Width="130" Height="95" Background="#F0F0F0" Cursor="Hand"
+                                                ToolTip="클릭하여 썸네일 이미지 지정" MouseLeftButtonUp="ThumbnailArea_Click">
+                                            <Grid>
+                                                <Image Source="{Binding ThumbnailPath, Converter={StaticResource ThumbnailPathConverter}}" Stretch="UniformToFill">
+                                                    <Image.Style>
+                                                        <Style TargetType="Image">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasThumbnail}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Image.Style>
+                                                </Image>
+                                                <TextBlock Text="🎬" FontSize="36" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasThumbnail}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Grid>
+                                        </Border>
+                                        <TextBlock Text="{Binding FileName}" TextWrapping="Wrap" TextAlignment="Center" FontSize="11" Margin="0,5,0,0"
+                                                   ToolTip="더블클릭하여 재생" MouseLeftButtonDown="FileNameCell_MouseLeftButtonDown"/>
+                                        <TextBlock Text="{Binding PlayCount, StringFormat='재생 {0}회'}" FontSize="10" Foreground="Gray" HorizontalAlignment="Center"/>
+                                        <ItemsControl ItemsSource="{Binding Tags}" Margin="0,4,0,0">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel HorizontalAlignment="Center"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Background="#E0E0E0" CornerRadius="6" Padding="4,1" Margin="1">
+                                                        <TextBlock Text="{Binding}" FontSize="9"/>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <!-- 태그 필터 팝업 (태그 마스터 목록 기준, "태그 필터" 버튼으로 열림) -->
+                    <Popup x:Name="TagFilterPopup" StaysOpen="False" Placement="Bottom">
+                        <Border Background="White" BorderBrush="Gray" BorderThickness="1" Padding="10">
+                            <StackPanel Width="220">
+                                <TextBlock Text="태그 필터" FontWeight="Bold" Margin="0,0,0,5"/>
+                                <ScrollViewer MaxHeight="240" VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl x:Name="TagFilterList">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <CheckBox Content="{Binding Tag}" IsChecked="{Binding IsSelected}" Margin="0,2"/>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                                    <Button Content="초기화" Padding="8,3" Margin="0,0,5,0" Click="TagFilterClear_Click"/>
+                                    <Button Content="적용" Padding="8,3" Click="TagFilterApply_Click"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+
+                    <!-- 배우 필터 팝업 (배우 마스터 목록 기준, "배우 필터" 버튼으로 열림, 여러 명 선택 가능) -->
+                    <Popup x:Name="ActorFilterPopup" StaysOpen="False" Placement="Bottom">
+                        <Border Background="White" BorderBrush="Gray" BorderThickness="1" Padding="10">
+                            <StackPanel Width="220">
+                                <TextBlock Text="배우 필터" FontWeight="Bold" Margin="0,0,0,5"/>
+                                <ScrollViewer MaxHeight="240" VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl x:Name="ActorFilterList">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <CheckBox Content="{Binding ActorName}" IsChecked="{Binding IsSelected}" Margin="0,2"/>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                                    <Button Content="초기화" Padding="8,3" Margin="0,0,5,0" Click="ActorFilterClear_Click"/>
+                                    <Button Content="적용" Padding="8,3" Click="ActorFilterApply_Click"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+
+                    <!-- 헤더 우클릭: 표시할 컬럼 선택 팝업 -->
+                    <Popup x:Name="ColumnChooserPopup" StaysOpen="False" Placement="Bottom">
+                        <Border Background="White" BorderBrush="Gray" BorderThickness="1" Padding="10">
+                            <StackPanel Width="160">
+                                <TextBlock Text="표시할 컬럼" FontWeight="Bold" Margin="0,0,0,5"/>
+                                <CheckBox x:Name="ThumbnailColumnCheckBox" Content="썸네일 (맨 앞)" IsChecked="False" Margin="0,2" Click="ColumnToggle_Click" Tag="Thumbnail"/>
+                                <CheckBox x:Name="SizeColumnCheckBox" Content="크기" IsChecked="True" Margin="0,2" Click="ColumnToggle_Click" Tag="Size"/>
+                                <CheckBox x:Name="PlayCountColumnCheckBox" Content="재생횟수" IsChecked="True" Margin="0,2" Click="ColumnToggle_Click" Tag="PlayCount"/>
+                                <CheckBox x:Name="TagsColumnCheckBox" Content="태그" IsChecked="True" Margin="0,2" Click="ColumnToggle_Click" Tag="Tags"/>
+                                <CheckBox x:Name="ActorColumnCheckBox" Content="배우" IsChecked="False" Margin="0,2" Click="ColumnToggle_Click" Tag="Actor"/>
+                                <CheckBox x:Name="MemoColumnCheckBox" Content="메모" IsChecked="False" Margin="0,2" Click="ColumnToggle_Click" Tag="Memo"/>
+                                <CheckBox x:Name="FolderColumnCheckBox" Content="폴더명" IsChecked="False" Margin="0,2" Click="ColumnToggle_Click" Tag="Folder"/>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+                </Grid>
+
+                <!-- 선택된 항목의 상세 정보 -->
+                <Border Grid.Row="5" Grid.ColumnSpan="2" BorderBrush="LightGray" BorderThickness="1" Padding="10" Margin="0,10,0,0" MinHeight="90">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="NoSelectionHint" Grid.Column="0" Text="선택된 항목이 없습니다." Foreground="Gray" VerticalAlignment="Center"/>
+                        <StackPanel x:Name="SelectedItemDetailsPanel" Grid.Column="0" Visibility="Collapsed">
+                            <TextBlock FontWeight="Bold" FontSize="13" Text="{Binding FileName}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                            <WrapPanel>
+                                <TextBlock Text="{Binding SizeDisplay, StringFormat='크기: {0}   '}"/>
+                                <TextBlock Text="{Binding ModifiedDate, StringFormat='수정일: {0:yyyy-MM-dd HH:mm}   '}"/>
+                                <TextBlock Text="{Binding PlayCount, StringFormat='재생횟수: {0}   '}"/>
+                                <TextBlock Text="{Binding ActorsDisplay, StringFormat='배우: {0}   '}"/>
+                            </WrapPanel>
+                            <TextBlock Text="{Binding Memo, StringFormat='메모: {0}'}" TextWrapping="Wrap" MaxHeight="34" Margin="0,2,0,0"/>
+                            <TextBlock Text="{Binding FullPath, StringFormat='경로: {0}'}" TextWrapping="Wrap" Foreground="Gray" FontSize="11" Margin="0,4,0,4"/>
+                            <ItemsControl ItemsSource="{Binding Tags}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="#E0E0E0" CornerRadius="8" Padding="6,2" Margin="0,0,4,4">
+                                            <TextBlock Text="{Binding}" FontSize="11"/>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
+                        <!-- 선택된 항목의 배우 썸네일들 (100x100, 여러 명이면 오른쪽 정렬로 차례대로 표시) -->
+                        <ItemsControl x:Name="SelectedItemActorsPanel" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Width="100" Height="100" Margin="4,0,0,0" Background="#F0F0F0" BorderBrush="Gray" BorderThickness="1" ToolTip="{Binding Name}">
+                                        <Grid>
+                                            <Image Source="{Binding ThumbnailPath, Converter={StaticResource ThumbnailPathConverter}}" Stretch="UniformToFill">
+                                                <Image.Style>
+                                                    <Style TargetType="Image">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding HasThumbnail}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Image.Style>
+                                            </Image>
+                                            <TextBlock Text="👤" FontSize="36" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding HasThumbnail}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+        </Grid>
+    </DockPanel>
+</Window>
