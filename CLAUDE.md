@@ -11,6 +11,7 @@ C# WPF (.NET 8) 데스크톱 GUI 애플리케이션.
 - 관리 리스트에서 파일명, 크기, 재생횟수, tags(태그 형태의 사용자 정의 속성)를 확인하고 정렬·필터링할 수 있다.
 - 태그는 별도의 **태그 마스터 목록**(JSON 파일)으로 관리되며, 사용자는 이 마스터 목록에서 태그를 추가/수정/삭제할 수 있다. 관리 리스트 항목에 태그를 붙일 때는 자유 입력이 아니라 마스터 목록에서 선택하는 방식이다.
 - 관리 리스트는 리스트 보기 / 아이콘(썸네일) 보기 두 가지 방식으로 볼 수 있으며, 각 항목에 사용자가 직접 이미지 파일을 썸네일로 지정할 수 있다.
+- 배우 마스터 목록은 배우가 출연한 작품(품번) 목록인 **Credits**를 함께 관리하며, 관리 리스트의 파일-배우 태깅과 서로 자동으로 동기화된다 — [배우 마스터 목록 관리](#배우-마스터-목록-관리-actormanagerwindow) 참고.
 
 ## 기술 스택
 
@@ -76,16 +77,18 @@ exe 아이콘(탐색기/작업 표시줄)과 `MainWindow` 타이틀바 아이콘
 - `ManagedListRepository.cs` — 관리 리스트 JSON 파일 읽기/쓰기 로직
 - `TagRepository.cs` — 태그 마스터 목록(`tags.json`) 읽기/쓰기 로직
 - `TagManagerWindow.xaml` / `TagManagerWindow.xaml.cs` — 태그 마스터 목록 추가/수정/삭제 관리 화면
-- `ActorItem.cs` — 배우 마스터 목록 항목 모델 (이름, 100x100 썸네일 경로, 출생년도/키/신체정보, JSON 직렬화 대상, `INotifyPropertyChanged` 구현)
+- `ActorItem.cs` — 배우 마스터 목록 항목 모델 (이름, 100x100 썸네일 경로, 출생년도/키/신체정보, 출연 작품 품번 목록 `Credits`, JSON 직렬화 대상, `INotifyPropertyChanged` 구현)
 - `ActorRepository.cs` — 배우 마스터 목록(`actors.json`) 읽기/쓰기 로직
-- `ActorManagerWindow.xaml` / `ActorManagerWindow.xaml.cs` — 배우 마스터 목록 추가/이름변경/삭제 관리 화면 + 배우별 100x100 썸네일 지정/삭제 + 배우 정보(출생년도/키/신체정보) 표시([배우 마스터 목록 관리](#배우-마스터-목록-관리-actormanagerwindow) 참고)
+- `ActorManagerWindow.xaml` / `ActorManagerWindow.xaml.cs` — 배우 마스터 목록 추가/이름변경/삭제 관리 화면 + 배우별 100x100 썸네일 지정/삭제 + 배우 정보(출생년도/키/신체정보) 표시 + 이 배우가 출연한 작품(Credits) 목록 표시·관리([배우 마스터 목록 관리](#배우-마스터-목록-관리-actormanagerwindow) 참고)
+- `AddCreditWindow.xaml` / `AddCreditWindow.xaml.cs` — 배우의 Credits에 새 품번을 추가하는 대화상자. 입력하는 동안 관리 리스트에서 일치하는 항목을 미리보기로 보여주지만, 목록에 없는 품번도 자유롭게 입력할 수 있다 (2026-08-02 추가, **구현 완료**) — [배우 마스터 목록 관리](#배우-마스터-목록-관리-actormanagerwindow) 참고
+- `ActorCreditSync.cs` — 관리 리스트 항목의 `Actors`와 배우 마스터 목록의 `Credits`를 서로 동기화하는 공용 로직 (파일명 변경 시 Credits 값 갱신/배우 자동 추가, 속성 창에서 배우 제거 시 Credits에서도 제거). `RenameHelper`/`PropertiesWindow`/`ActorManagerWindow`가 공유한다 (2026-08-02 추가, **구현 완료**) — [배우 마스터 목록 관리](#배우-마스터-목록-관리-actormanagerwindow) 참고
 - `ActorInfoWindow.xaml` / `ActorInfoWindow.xaml.cs` — 배우의 이름/출생년도/키/신체정보를 추가·수정·삭제하는 대화상자. `ActorManagerWindow`의 배우 목록을 우클릭 → "배우 정보 수정"으로 연다
 - `ImageLoadHelper.cs` — 로컬 파일 경로에서 `BitmapImage`를 즉시 전부 읽어들여(`BitmapCacheOption.OnLoad` + `Freeze`) 반환하는 공용 로직. 화면에 표시 중인 썸네일 파일을 새 썸네일로 덮어쓸 수 있도록 파일 잠금을 피하기 위한 것 ([썸네일 파일 잠금 문제](#썸네일-파일-잠금-문제-이미-표시-중인-썸네일-덮어쓰기) 참고)
 - `WindowsIconHelper.cs` — Windows 셸에서 특정 확장자에 연결된 표준 아이콘을 가져오는 헬퍼(`SHGetFileInfo` P/Invoke). `PngFileIcon`은 `.png` 파일의 표준 아이콘을 조회해 `ImageSource`로 변환하고 캐시한다. 관리 리스트의 썸네일 유무 컬럼 아이콘에 사용 ([헤더 우클릭 → 표시할 컬럼 선택](#2-관리-리스트-사용자가-지속적으로-관리하는-목록) 참고)
 - `ThumbnailPathConverter.cs` — 썸네일 경로 문자열을 `ImageLoadHelper.Load`로 변환하는 `IValueConverter`. XAML에서 `Image.Source`를 `ThumbnailPath`에 바인딩할 때 암시적 문자열 변환 대신 이 컨버터를 사용해야 파일 잠금 문제가 생기지 않는다
-- `PropertiesWindow.xaml` / `PropertiesWindow.xaml.cs` — 관리 리스트 항목의 속성 대화상자: 파일 정보 표시(파일명은 수정 가능한 텍스트 상자, 전체경로 옆 "경로 수정" 버튼 포함), 재생횟수 읽기 전용 표시·초기화, 3줄 메모 편집, 태그 마스터 목록에서 태그 선택(체크박스, 여러 개 동시 선택 가능), 배우 마스터 목록에서 배우 선택(오름차순 정렬된 콤보박스 + 추가 버튼, 여러 명 동시 지정 가능), 썸네일 추가/삭제. 예전 `TagEditWindow`를 이 요구사항에 맞게 확장하며 이름을 변경한 것
+- `PropertiesWindow.xaml` / `PropertiesWindow.xaml.cs` — 관리 리스트 항목의 속성 대화상자: 파일 정보 표시(파일명은 이름/확장자로 분리된 두 개의 수정 가능한 텍스트 상자, 전체경로 옆 "경로 수정" 버튼 포함), 썸네일 버튼 줄 왼쪽의 "품번" 표시, 재생횟수 읽기 전용 표시·초기화, 3줄 메모 편집, 태그 마스터 목록에서 태그 선택(체크박스, 여러 개 동시 선택 가능), 배우 마스터 목록에서 배우 선택(오름차순 정렬된 콤보박스 + 추가 버튼, 여러 명 동시 지정 가능— 배우 제거 시 `ActorCreditSync`로 그 배우의 Credits에서도 이 파일의 품번이 제거됨), 썸네일 추가/삭제. 예전 `TagEditWindow`를 이 요구사항에 맞게 확장하며 이름을 변경한 것
 - `RenameWindow.xaml` / `RenameWindow.xaml.cs` — 새 파일명을 입력받는 간단한 대화상자. `MainWindow`의 F2/우클릭 "이름변경"에서 사용 (`PropertiesWindow`의 파일명 텍스트 상자는 이 대화상자를 거치지 않고 바로 적용됨)
-- `RenameHelper.cs` — 관리 리스트 항목이 가리키는 실제 파일을 rename/이동하고(`File.Move`), 성공 시 항목의 `FileName`/`FullPath`를 갱신하는 공용 로직. `TryRenameManagedItem`(`RenameWindow` 대화상자로 새 이름을 입력받음, 컨텍스트 메뉴/F2의 "이름변경"이 사용)은 내부적으로 대화상자 없는 `TryRenameManagedItemTo`(새 파일명을 바로 받아 rename, `PropertiesWindow`의 파일명 텍스트 상자가 사용)에 위임한다. `TryEditFullPath`(폴더/파일명 모두 바꿀 수 있음, `SaveFileDialog`로 새 위치를 선택, `PropertiesWindow`의 "파일 변경" 버튼)도 있다. `TryMoveToFolder`(`OpenFolderDialog`로 폴더를 선택, `PropertiesWindow`의 "경로 수정" 버튼)는 대화상자 없이 대상 폴더를 바로 받는 `TryMoveToSpecificFolder`(대상 폴더가 없으면 `Directory.CreateDirectory`로 새로 만듦, `PropertiesWindow`의 "파일 이동" 버튼도 코드로 계산한 폴더를 이 메서드에 바로 넘겨 사용)에 위임한다. 모든 이동/rename 메서드는 내부적으로 같은 썸네일/원본 파일 동반 이동 로직(`RenameAssociatedFile`)을 공유한다
+- `RenameHelper.cs` — 관리 리스트 항목이 가리키는 실제 파일을 rename/이동하고(`File.Move`), 성공 시 항목의 `FileName`/`FullPath`를 갱신하는 공용 로직. `TryRenameManagedItem`(`RenameWindow` 대화상자로 새 이름을 입력받음, 컨텍스트 메뉴/F2의 "이름변경"이 사용)은 내부적으로 대화상자 없는 `TryRenameManagedItemTo`(새 파일명을 바로 받아 rename, `PropertiesWindow`의 파일명 텍스트 상자가 사용)에 위임한다. `TryEditFullPath`(폴더/파일명 모두 바꿀 수 있음, `SaveFileDialog`로 새 위치를 선택, `PropertiesWindow`의 "파일 변경" 버튼)도 있다. `TryMoveToFolder`(`OpenFolderDialog`로 폴더를 선택, `PropertiesWindow`의 "경로 수정" 버튼)는 대화상자 없이 대상 폴더를 바로 받는 `TryMoveToSpecificFolder`(대상 폴더가 없으면 `Directory.CreateDirectory`로 새로 만듦, `PropertiesWindow`의 "파일 이동" 버튼도 코드로 계산한 폴더를 이 메서드에 바로 넘겨 사용)에 위임한다. 모든 이동/rename 메서드는 내부적으로 같은 썸네일/원본 파일 동반 이동 로직(`RenameAssociatedFile`)을 공유한다. 파일명이 실제로 바뀌는 두 메서드(`TryRenameManagedItemTo`/`TryEditFullPath`, `TryMoveToFolder`류는 파일명이 안 바뀌므로 제외)는 성공 시 `ActorCreditSync.OnFileRenamed`를 호출해 배우 Credits와도 동기화한다(2026-08-02 추가, **구현 완료**) — [배우 마스터 목록 관리](#배우-마스터-목록-관리-actormanagerwindow) 참고
 - `FormatUtil.cs` — 파일 크기 표시 등 공용 포맷 유틸리티
 - `ThumbnailHelper.cs` — 원본 이미지를 동영상 파일과 같은 폴더에 원본 그대로 + 320x240 리사이즈본으로 각각 저장하는 공용 로직 ([썸네일 관리](#썸네일-관리) 참고). 배우 썸네일용으로 원본 없이 100x100 리사이즈본만 저장하는 `CreateActorThumbnail`도 포함 ([배우 마스터 목록 관리](#배우-마스터-목록-관리-actormanagerwindow) 참고)
 - `OriginalImageWindow.xaml` / `OriginalImageWindow.xaml.cs` — 원본(리사이즈 전) 썸네일 이미지를 크게 보여주는 창. 클릭하면 닫힌다
@@ -127,6 +130,7 @@ Constants.cs                  # 하드코딩 문자열 상수 모음
 - **초기화**: 현재 스캔 결과와 선택된 폴더 경로를 모두 지우고 "폴더를 선택하세요." 초기 상태로 되돌린다 (`ResetFolderList_Click`) — **구현 완료**.
 - **읽어온 파일 개수 표시**: 리스트 아래 오른쪽(파일 삭제/관리 리스트에 추가 버튼과 같은 줄, 버튼들 왼쪽)에 "파일 N개"로 스캔된 파일 개수를 보여준다(`FolderFileCountText`) — **구현 완료**. `LoadVideoFiles()`가 스캔을 마칠 때마다 갱신하고, "초기화" 시 비운다.
 - **관리 리스트에 추가**: 폴더 목록에서 선택한 파일을 관리 리스트로 추가. 같은 파일명의 **보관된**(전에 제거되었거나 파일을 찾지 못해 자동으로 빠진) 데이터가 있으면 재사용 여부를 묻는다 — 자세한 내용은 [관리 리스트의 "추가"](#2-관리-리스트-사용자가-지속적으로-관리하는-목록) 참고
+- **파일 삭제**: 선택한 파일(들)을 실제로 디스크에서 삭제한다(관리 데이터가 아니라 원본 파일 자체 삭제, 되돌릴 수 없음). 목록이 `SelectionMode="Extended"`라 여러 파일을 선택할 수 있으며, **여러 개 선택 시 전부 삭제 대상이 된다**(2026-08-02 수정, **구현 완료** — 예전에는 여러 개를 선택해도 그중 하나만 조용히 삭제되고 나머지는 안내 없이 그대로 남는 버그가 있었음). 개별 파일 삭제가 실패해도(권한 등) 나머지는 계속 삭제를 진행하고, 실패한 파일이 있으면 목록으로 안내한다.
 - **마지막 폴더 기억**: 창을 열 때 `MainWindow`가 마지막으로 기억해둔 폴더(`_currentFolder`, [설정 관리](#설정-관리)의 `LastFolder`)를 생성자 인자로 넘겨받아 자동으로 스캔해서 보여준다. 창을 닫으면(`LastFolder` 프로퍼티로) `MainWindow`가 그 값을 다시 받아 `_currentFolder`를 갱신하고 바뀐 경우에만 설정을 저장한다.
 - **닫기**: 창 하단의 "닫기" 버튼으로 서브 창을 닫고 메인 창으로 돌아간다. `MainWindow`는 창이 닫히면(`ShowDialog()` 반환 후) `_managedView.Refresh()`를 호출해, "재사용" 시 `IsArchived`가 바뀐 항목이 필터에 바로 반영되도록 한다.
 - (향후) 폴더 스캔은 비동기(Task)로 수행해 UI 스레드를 막지 않는다 — [성능](#성능) 참고
@@ -135,7 +139,7 @@ Constants.cs                  # 하드코딩 문자열 상수 모음
 
 - 폴더 목록과 별도의 영역/컨트롤로 표시되며, 내부적으로는 **JSON 파일로 영속 저장**된다.
 - **"목록 추가" 버튼**: 관리 리스트 상단 툴바의 "태그 관리" 버튼 **왼쪽**에 있다 (2026-08-02 추가) — **구현 완료**. [폴더 목록](#1-폴더-목록-현재-열린-폴더-스캔-결과) 서브 창(`FolderListWindow`)을 여는 진입점이며, "파일 > 폴더 목록" 메뉴와 동일한 `OpenFolderList_Click` 핸들러를 공유한다.
-- **관리되는 파일 개수 표시**: 관리 리스트 제목("관리 리스트") **바로 밑**, 맨 위 왼쪽에 `(전체 N / 썸네일 N / 제거됨 N)` 형식으로 **왼쪽 정렬**되어 표시된다(`ManagedCountText`, 제목과 세로로 쌓는 `StackPanel`에 `HorizontalAlignment="Left"`를 명시) — **구현 완료** (2026-08-02 변경 — 예전에는 제목 옆에 나란히 표시했음). **전체**는 `_managedItems`에 들어있는 모든 항목 수(활성+제거됨 합산), **썸네일**은 그중 `HasThumbnail`이 true인 개수, **제거됨**은 `IsArchived`가 true인 개수다. 항목이 추가/제거/완전삭제되거나(`ManagedItems_CollectionChanged`) 개별 항목의 속성이 바뀔 때마다(`ManagedItem_PropertyChanged`, 예: 썸네일 지정·삭제) `UpdateManagedCountDisplay()`로 다시 계산된다.
+- **관리되는 파일 개수 표시**: 관리 리스트 제목("관리 리스트") **바로 밑**, 맨 위 왼쪽에 `(전체 N / 썸네일 N / 제거됨 N)` 형식으로 **왼쪽 정렬**되어 표시된다(`ManagedCountText`, 제목과 세로로 쌓는 `StackPanel`에 `HorizontalAlignment="Left"`를 명시) — **구현 완료** (2026-08-02 변경 — 예전에는 제목 옆에 나란히 표시했음). **전체**는 `_managedItems`에 들어있는 모든 항목 수(활성+제거됨 합산), **썸네일**은 그중 `HasThumbnail`이 true인 개수, **제거됨**은 `IsArchived`가 true인 개수다. 항목이 추가/제거/완전삭제되거나(`ManagedItems_CollectionChanged`) 개별 항목의 속성이 바뀔 때마다(`ManagedItem_PropertyChanged`, 예: 썸네일 지정·삭제) `UpdateManagedCountDisplay()`로 다시 계산된다. **시작 시 로딩 중에는 이 재계산을 건너뛴다**(2026-08-02 최적화, **구현 완료**) — `LoadInitialData()`가 항목을 하나씩 `Add`할 때마다 매번 전체를 다시 스캔하면 로딩이 O(n²)가 되므로, 로딩 중(`_suppressAutoSave`)에는 건너뛰고 로딩이 끝난 뒤 한 번만 계산한다.
 - **추가**: 폴더 목록에서 선택한 파일을 관리 리스트에 추가. 같은 파일명의 **제거된 데이터**가 있으면 재사용 여부를 확인 대화상자로 물어본다 — 예를 선택하면 재생횟수/태그/배우/메모/썸네일은 그대로 유지한 채 경로(`FullPath`)·크기·수정일만 새로 스캔된 파일 것으로 갱신하고 다시 활성화한다. 아니요를 선택하면 완전히 새 항목으로 추가한다. → [제거(Remove) 메커니즘](#제거remove-메커니즘) 참고
 - **제거** (버튼/메뉴 이름: "제거", 예전 이름 "목록에서 제거"): 관리 리스트에서 선택한 항목을 활성 목록에서 뺀다 (실제 동영상 파일은 삭제되지 않음 — 실제 파일 삭제 기능은 폴더 목록 쪽에 별도로 있음). **데이터 자체는 사라지지 않고 별도 파일(`removed.json`)로 옮겨져 유지**되며, "제거된 항목도 표시" 체크박스로 다시 볼 수 있고 나중에 같은 파일명으로 다시 추가하면 재사용할 수 있다 → [제거(Remove) 메커니즘](#제거remove-메커니즘) 참고. **여러 항목을 동시에 선택해 한 번에 제거할 수 있다**(아래 "다중 선택" 항목 참고)
 - **재생**: 선택한 파일을 OS 기본 연결 프로그램으로 실행, 재생 시 해당 항목의 재생횟수(PlayCount) 증가
@@ -203,11 +207,11 @@ Constants.cs                  # 하드코딩 문자열 상수 모음
 **레이아웃(2026-08-02 변경)**: 창 내용은 `ScrollViewer`로 감싸져 있고, "완전 삭제"/"확인"/"취소" 버튼 줄만 그 밖(창 맨 아래)에 고정되어 있다 — **구현 완료**. 배우를 여러 명 추가해 배우 썸네일 영역이 늘어나는 등 내용이 길어져도 버튼 줄은 항상 보이며, 내용 영역만 세로로 스크롤된다(예전에는 내용이 늘어나면 "확인" 버튼이 창 밖으로 밀려나 보이지 않는 문제가 있었음).
 
 1. 대화상자로 열린다 (모달, `Owner`는 `MainWindow`).
-2. 항목이 가진 파일 정보를 보여준다: 파일명, 크기, 수정일(**크기와 수정일은 같은 줄에 나란히 배치된다**, 2026-08-02 변경 — 예전에는 각각 별도 줄이었음), 전체 경로(읽기 전용 텍스트 상자, 선택/복사 가능), 재생횟수.
+2. 항목이 가진 파일 정보를 보여준다: 파일명, 크기, 수정일(**크기와 수정일은 같은 줄에 나란히 배치된다**, 2026-08-02 변경 — 예전에는 각각 별도 줄이었음), 전체 경로(읽기 전용 텍스트 상자, 선택/복사 가능), 재생횟수. **파일명은 이름과 확장자가 분리된 두 개의 텍스트 상자로, 같은 줄에 "." 구분자를 사이에 두고 나란히 배치된다**(2026-08-02 변경, **구현 완료** — 예전에는 확장자까지 포함한 파일명 전체가 텍스트 상자 하나였음). 둘 중 하나라도 포커스를 잃으면(`FileNamePart_LostFocus`) 두 값을 합쳐서 기존과 동일하게 rename이 적용된다.
 3. **"코드" 입력란이 있다** (2026-08-02 추가, **구현 완료**). `_item.Code`가 비어있으면 창을 열 때 파일명에서 자동으로 제안값을 채운다 — `ManagedVideoItem.DeriveCode(fileName, fullPath)`의 생성 규칙: **① 파일명의 첫 번째 "-" 이전 부분**을 사용하고, **② "-"를 찾지 못하면 폴더명**(`FolderName`과 동일한 규칙, 마지막 폴더 이름 한 단계)을 대신 사용한다. 이미 저장된 코드 값이 있으면 그 값을 그대로 보여준다. 텍스트 상자는 자유롭게 수정 가능하며(**직접 수정 가능**), "확인" 클릭 시 `_item.Code`에 커밋된다("파일 이동" 버튼을 쓰면 그 시점에도 바로 커밋됨). **파일명 텍스트 상자에서 이름을 바꾸면(rename 성공 시) "코드" 입력란도 새 파일명/경로 기준으로 다시 계산되어 반영된다** (2026-08-02 추가, **구현 완료**) — 이때까지 사용자가 입력해둔 코드값은 덮어써진다. **"코드" 입력란 바로 옆(같은 줄)에 "출시일" 입력란이 있다**(`ManagedVideoItem.ReleaseDate`, 2026-08-02 추가, **구현 완료**) — 자유 텍스트 상자로, 자동 제안이나 형식 강제 없이 사용자가 직접 입력한 값을 그대로 저장한다(예: "2023-06-06"). "확인" 클릭 시 `_item.ReleaseDate`에 커밋된다.
 4. 태그는 태그 마스터 목록 전체를 체크박스로 나열하고, 체크박스로 여러 개를 동시에 선택/해제할 수 있다.
 5. 태그 체크박스 목록은 `WrapPanel`로 배치되어 한 줄로 흐르다가 공간이 부족하면 자동으로 다음 줄로 넘어간다.
-6. **파일명은 수정 가능한 텍스트 상자로 표시된다** (더 이상 "이름 변경" 버튼이 없다 — **구현 완료**). 내용을 바꾸고 포커스를 다른 곳으로 옮기면(`LostFocus`) 바로 실제 파일이 rename된다(`RenameHelper.TryRenameManagedItemTo`, 대화상자 없이 즉시 적용). 실패(잘못된 파일명, 같은 이름의 파일이 이미 존재 등)하면 텍스트 상자가 원래 파일명으로 되돌아간다. 성공하면 전체 경로/썸네일 미리보기(썸네일 파일도 함께 rename되므로)도 갱신된다. `MainWindow`의 F2/우클릭 "이름변경"은 여전히 `RenameWindow` 대화상자를 통해 `RenameHelper.TryRenameManagedItem`을 사용한다(별도 진입점, 내부적으로 같은 `TryRenameManagedItemTo`를 호출).
+6. **파일명은 수정 가능한 텍스트 상자(이름/확장자 분리, 위 2번 참고)로 표시된다** (더 이상 "이름 변경" 버튼이 없다 — **구현 완료**). 내용을 바꾸고 포커스를 다른 곳으로 옮기면(`LostFocus`) 두 값을 합쳐 바로 실제 파일이 rename된다(`RenameHelper.TryRenameManagedItemTo`, 대화상자 없이 즉시 적용). 실패(잘못된 파일명, 같은 이름의 파일이 이미 존재 등)하면 텍스트 상자가 원래 파일명/확장자로 되돌아간다. 성공하면 전체 경로/썸네일 미리보기(썸네일 파일도 함께 rename되므로)/품번 표시가 갱신되고, `ActorCreditSync.OnFileRenamed`로 배우 Credits와도 동기화된다(아래 "배우 Credits와의 동기화" 참고) — 그 결과로 배우가 자동 추가될 수 있으므로 화면의 배우 선택 상태(`_selectedActors`)도 `SyncSelectedActorsFromItem()`으로 즉시 다시 맞춘다(그렇지 않으면 "확인" 시 오래된 화면 상태로 덮어써서 방금 자동 추가된 배우가 사라짐). `MainWindow`의 F2/우클릭 "이름변경"은 여전히 `RenameWindow` 대화상자를 통해 `RenameHelper.TryRenameManagedItem`을 사용한다(별도 진입점, 내부적으로 같은 `TryRenameManagedItemTo`를 호출하므로 이 경로로 이름을 바꿔도 배우 Credits 동기화는 동일하게 적용된다).
 7. "전체 경로:" 옆에 버튼이 **세 개** 있다 (2026-08-02 변경 — "파일 이동" 추가) — **구현 완료**. 셋 다 확인/취소와 무관하게 즉시 반영되며, 성공 시 전체 경로/썸네일 미리보기가 모두 갱신된다(썸네일/원본 파일도 함께 이동).
    - **"파일 이동"** (맨 왼쪽, 신규): `MoveByCodeButton_Click` → `RenameHelper.TryMoveToSpecificFolder`. **"코드" 입력란의 값으로 맨 마지막 폴더명을 바꾼 위치**로 파일을 옮긴다 — 현재 폴더의 부모 폴더 아래에 코드 이름의 폴더를 만들고(이미 있으면 그대로 사용) 그 안으로 이동한다(예: `...\RandomFolder\SSNI-123.mp4`, 코드 `SSNI` → `...\SSNI\SSNI-123.mp4`). **이동 전에 "이전 위치"와 "이동할 위치"를 모두 보여주는 확인 대화상자**를 띄운다 — **구현 완료**. 대상 폴더가 없으면 자동으로 만든다(`Directory.CreateDirectory`). 이동에 성공하면 그때의 코드 값을 `_item.Code`에도 저장한다.
    - **"파일 변경"** (예전 이름 "경로 수정"): `RenameHelper.TryEditFullPath`, **파일 대화상자(`SaveFileDialog`)로 새 위치를 선택**한다(폴더/파일명 모두 자유롭게 변경 가능). 대상이 이미 존재하면 대화상자 자체의 덮어쓰기 확인을 거치고, `File.Move(..., overwrite: true)`로 이동한다.
@@ -216,10 +220,14 @@ Constants.cs                  # 하드코딩 문자열 상수 모음
 8. **재생횟수 입력란은 읽기 전용**이다(`IsReadOnly="True"`, 직접 타이핑으로 수정 불가) — **구현 완료**. 옆의 "초기화" 버튼으로만 0으로 되돌릴 수 있으며, 다른 필드와 마찬가지로 실제 반영은 "확인" 클릭 시 커밋된다. **"재생" 버튼은 "초기화" 버튼 바로 오른쪽, 같은 줄에 있다**(2026-08-02 변경 — 예전에는 아래 별도 줄에 있었음, **구현 완료**) — 클릭하면 창을 닫지 않고도 이 항목의 파일을 바로 재생할 수 있다. `MainWindow`의 재생과 동일하게 재생과 동시에 `PlayCount`가 즉시 1 증가하고(확인/취소와 무관하게 바로 반영, 이름 변경/경로 수정/썸네일 변경과 같은 카테고리), 화면의 재생횟수 입력란도 곧바로 갱신된다.
 9. **메모 입력란은 3줄 입력 가능한 여러 줄 텍스트 상자**다(`AcceptsReturn="True"`, `TextWrapping="Wrap"`, 높이는 약 3줄 분량, 넘치면 세로 스크롤) — **구현 완료**.
 10. **배우 콤보박스는 이름 기준 오름차순으로 정렬되어 표시된다** — 생성자에서 `masterActors.OrderBy(a => a.Name, StringComparer.OrdinalIgnoreCase)`로 정렬한 스냅샷을 `ActorComboBox.ItemsSource`에 지정한다(태그 체크박스 목록과 동일한 정렬 패턴) — **구현 완료**. **선택된 배우 칩 목록 밑에 배우별 썸네일(80x80)이 표시된다**(2026-08-02 추가, **구현 완료**) — 배우를 추가/제거할 때마다(`AddActor_Click`/`RemoveActorChip_Click`) `RefreshSelectedActorsThumbnails()`가 `_selectedActors`의 이름들을 배우 마스터 목록에서 찾아 `ActorItem`으로 변환해 다시 그린다(`MainWindow` 하단 상세정보 패널의 배우 썸네일과 같은 패턴: `ThumbnailPathConverter` 바인딩, 썸네일 없으면 👤 기본 아이콘). 이 창이 `ThumbnailPathConverter`를 쓰는 것은 처음이라 `xmlns:local`과 `Window.Resources`에 컨버터를 새로 선언했다.
-11. 썸네일 뷰어 위에 "썸네일 추가"/"썸네일 삭제" 버튼이 나란히 있다 — "썸네일 삭제"는 `ThumbnailPath`/`ThumbnailOriginalPath` 파일을 디스크에서 삭제하고 두 필드를 모두 null로 되돌려 기본 아이콘 상태로 만든다(즉시 반영, 확인/취소와 무관). 썸네일이 없으면 안내 메시지만 표시한다. 썸네일의 현재 경로 정보(`ThumbnailPathText`)는 뷰어 **하단**에 표시된다.
+11. 썸네일 뷰어 위, "썸네일 추가"/"썸네일 삭제" 버튼과 같은 줄 **왼쪽**에 **"품번: {파일명, 확장자 제외}"**이 표시된다(`ProductCodeText`, 2026-08-02 추가, **구현 완료**) — 파일명이 바뀔 때마다(`RefreshProductCodeDisplay`) 함께 갱신된다. 그 옆(오른쪽)에 "썸네일 추가"/"썸네일 삭제" 버튼이 나란히 있다 — "썸네일 삭제"는 `ThumbnailPath`/`ThumbnailOriginalPath` 파일을 디스크에서 삭제하고 두 필드를 모두 null로 되돌려 기본 아이콘 상태로 만든다(즉시 반영, 확인/취소와 무관). 썸네일이 없으면 안내 메시지만 표시한다. 썸네일의 현재 경로 정보(`ThumbnailPathText`)는 뷰어 **하단**에 표시된다.
 12. **창 맨 아래 왼쪽에 "완전 삭제" 버튼이 있다** (진한 빨간 글자로 강조) — **구현 완료**. 확인 대화상자를 거친 뒤 이 항목의 관리 데이터를 완전히 삭제한다(관리 리스트에서 완전히 사라지며 `library.json`/`removed.json` 어디에도 남지 않음, [제거(Remove) 메커니즘](#제거remove-메커니즘)의 "완전삭제" 참고). 실제 동영상 파일은 삭제하지 않는다. 클릭하면 `PropertiesWindow.PermanentlyDeleted`를 `true`로 설정하고 `DialogResult = false`로 창을 닫으며, 실제 컬렉션에서의 제거는 호출자인 `MainWindow.OpenPropertiesWindow`가 이 플래그를 보고 수행한다(다이얼로그 자신은 `_managedItems`에 접근할 수 없으므로).
 
-"확인"을 누르면 재생횟수 입력란의 값, 코드, 메모, 선택된 태그/배우가 항목에 반영되고, "취소"를 누르면 그 변경 사항만 버려진다(파일명 변경/경로 수정/파일 이동/썸네일 추가·삭제/완전 삭제/재생(재생횟수 증가 포함)은 이미 실제로 적용된 상태라 취소로 되돌아가지 않는다. "파일 이동"으로 성공한 경우의 코드 값도 이미 즉시 반영되어 있다).
+**배우 Credits와의 동기화** (2026-08-02 추가, **구현 완료**): 이 항목의 `Actors`와 배우 마스터 목록의 `Credits`가 어긋나지 않도록 `ActorCreditSync`(자세한 내용은 [배우 마스터 목록 관리](#배우-마스터-목록-관리-actormanagerwindow) 참고)가 두 방향으로 동기화한다.
+- 배우 칩을 ✕로 제거하고 "확인"으로 커밋하면, 그 배우의 Credits에서도 이 파일의 품번을 제거한다(`TryCommitFormFields`가 커밋 직전에 `_item.Actors`와 화면에 남은 선택을 비교해 빠진 배우를 찾아 `ActorCreditSync.OnActorRemovedFromItem`을 호출).
+- 파일명이 바뀌면(위 6번) `ActorCreditSync.OnFileRenamed`가 실행된다.
+
+"확인"을 누르면 재생횟수 입력란의 값, 코드, 메모, 선택된 태그/배우가 항목에 반영되고(배우 Credits 동기화도 이 시점에 함께 적용됨), "취소"를 누르면 그 변경 사항만 버려진다(파일명 변경/경로 수정/파일 이동/썸네일 추가·삭제/완전 삭제/재생(재생횟수 증가 포함)은 이미 실제로 적용된 상태라 취소로 되돌아가지 않는다. "파일 이동"으로 성공한 경우의 코드 값도 이미 즉시 반영되어 있다).
 
 - **엔터 키로 버튼이 눌리지 않는다** (2026-08-02 변경, **구현 완료**) — "확인" 버튼의 `IsDefault="True"`를 제거했다. 예전에는 파일명/코드 같은 한 줄 텍스트 상자에서 Enter를 치면(줄바꿈을 직접 처리하는 메모 상자 제외) 의도치 않게 "확인"이 눌렸다.
 - **창을 닫기(제목 표시줄의 X, Alt+F4 등) 버튼으로 닫아도 변경사항이 저장된다** (2026-08-02 추가, **구현 완료**) — `Window.Closing` 이벤트(`Window_Closing`)에서 `DialogResult`가 아직 설정되지 않은 경우(= "확인"/"취소"/"완전 삭제" 버튼을 거치지 않고 닫힌 경우)에만 "확인"과 동일한 커밋 로직(`TryCommitFormFields`, `Ok_Click`과 공유)을 실행하고 `DialogResult = true`로 저장한다. 재생횟수 값이 올바르지 않는 등 검증에 실패하면 `e.Cancel = true`로 닫기 자체를 막는다(확인 버튼과 동일한 검증 규칙). "취소"/"완전 삭제" 버튼은 클릭 시 이미 `DialogResult`를 설정해두므로 이 로직을 건너뛰어 기존 동작(변경사항 버림/완전 삭제)을 그대로 유지한다.
@@ -261,7 +269,7 @@ Constants.cs                  # 하드코딩 문자열 상수 모음
 
 태그와 별개로, 배우는 이름뿐 아니라 100x100 썸네일 이미지를 함께 갖는 마스터 목록으로 관리한다 — **구현 완료**.
 
-- **데이터 모델(`ActorItem`)**: `Name`(문자열) + `ThumbnailPath`(문자열?, 100x100 리사이즈본 경로, 미지정 시 null) + `BirthYear`(int?, 출생년도) + `Height`(int?, 키/cm) + `BodyInfo`(문자열, 신체정보 자유 텍스트, 기본값 빈 문자열) + 계산 속성 `HasThumbnail`. `INotifyPropertyChanged` 구현. 모두 public setter라 `Tags`/`Actors`와 달리 `[JsonInclude]`가 필요 없다.
+- **데이터 모델(`ActorItem`)**: `Name`(문자열) + `ThumbnailPath`(문자열?, 100x100 리사이즈본 경로, 미지정 시 null) + `BirthYear`(int?, 출생년도) + `Height`(int?, 키/cm) + `BodyInfo`(문자열, 신체정보 자유 텍스트, 기본값 빈 문자열) + `Credits`(`List<string>`, 이 배우가 출연한 것으로 등록된 품번 목록, 2026-08-02 추가) + 계산 속성 `HasThumbnail`. `INotifyPropertyChanged` 구현. `Name`/`ThumbnailPath`/`BirthYear`/`Height`/`BodyInfo`는 모두 public setter라 `[JsonInclude]`가 필요 없지만, `Credits`는 `ManagedVideoItem.Tags`/`Actors`와 동일한 이유로 `private set` + `[JsonInclude]` + `SetCredits(...)` 메서드 패턴을 쓴다 — [컨벤션](#컨벤션) 참고.
 - **저장 위치**: `%LOCALAPPDATA%\VideoVault\actors.json`. 관리 리스트/태그와 동일하게 프로그램 시작 시 자동 로딩되고, 파일이 없으면 빈 목록으로 시작한다.
 - **자동 저장**: 배우 추가/이름변경/삭제/썸네일 변경 시 500ms debounce 후 `actors.json`에 자동 저장 (관리 리스트/태그와 동일한 정책, `ActorItem.PropertyChanged`를 구독해 썸네일 변경도 감지). Ctrl+S로도 즉시 저장된다.
 - **관리 리스트 항목과의 관계**: `ManagedVideoItem.Actors`는 배우 이름의 목록(`List<string>`)으로, 태그와 마찬가지로 배우 마스터 목록에 존재하는 이름만 참조한다(자유 입력 아님). **한 항목에 배우를 여러 명 지정할 수 있다.**
@@ -274,6 +282,21 @@ Constants.cs                  # 하드코딩 문자열 상수 모음
   - **썸네일 지정/삭제**: 창 오른쪽에 선택된 배우의 100x100 썸네일 뷰어가 있고, 그 위에 "썸네일 추가"/"썸네일 삭제" 버튼이 나란히 있다. 추가는 파일 선택 대화상자 또는 드래그 앤 드롭(`DragDropImageHelper` 재사용, 인터넷 이미지 드래그도 동일하게 지원)으로, 삭제는 썸네일 파일을 디스크에서 지우고 `ThumbnailPath`를 null로 되돌린다(즉시 반영, 썸네일이 없으면 안내만 표시). 동영상 썸네일 뷰어와 달리 **원본을 클릭해서 크게 보는 기능은 없다** (원본 자체를 보관하지 않으므로).
   - **썸네일 정보 밑에 배우 정보 표시**: 오른쪽 패널의 썸네일 뷰어 아래에 선택된 배우의 이름/출생년도/키/신체정보를 읽기 전용으로 보여준다(값이 없으면 "-"). 선택이 바뀔 때마다 `RefreshActorInfoPanel`이 갱신한다 — **구현 완료**.
   - **우클릭 → "배우 정보 수정"**: 목록의 배우를 우클릭하면 `ActorItemContextMenu`(다른 우클릭 메뉴들과 동일하게 `Window.Resources`에 선언 후 `ItemContainerStyle`에서 `StaticResource`로 참조하는 패턴)가 뜨고, "배우 정보 수정"을 클릭하면 `ActorInfoWindow`가 열린다. 이 창에서 이름/출생년도/키/신체정보를 편집할 수 있다(출생년도/키/신체정보는 비워두면 삭제됨). 이름을 바꾸면 대화상자 자체는 다른 배우와의 이름 중복만 검사하고, 실제 rename 동기화(썸네일 파일 rename + 관리 리스트 항목들의 `Actors` 참조 갱신)는 "선택 배우 이름 변경" 버튼과 공유하는 `RenameActorAndSync`가 처리한다(중복 로직 방지) — **구현 완료**.
+  - **Credits(이 배우가 출연한 작품 목록, 2026-08-02 추가, 구현 완료)**: 썸네일 정보/배우 정보 밑에 **"Credits"** 라벨과 그 옆(오른쪽 정렬) **"작품 추가"** 버튼이 있고, 그 아래 이 배우의 `ActorItem.Credits`(품번 문자열 목록)를 태그 칩과 같은 모양(둥근 배경, 패딩)의 칩으로 나열한다.
+    - **색상 구분**: 관리 리스트(활성/제거됨 모두)에 같은 품번(파일명, 확장자 제외)의 파일이 실제로 있으면 **진한 파란색**(`#3D6FB4`, 흰 글자), 없으면 **연한 파란색**(`#CFE2F3`, 짙은 글자)으로 표시된다 — "알려진 작품이지만 아직 관리 리스트에 없는 파일"과 "이미 보유한 파일"을 한눈에 구분하기 위함.
+    - **자동 동기화(배우 선택 시)**: 배우를 선택할 때마다(`RefreshCreditsPanel` → `SyncCreditsFromManagedItems`) 관리 리스트에서 이 배우가 `Actors`로 지정된 파일들을 찾아 그 품번들을 Credits에 자동으로 병합한다(이미 있는 값은 건드리지 않음) — 관리 리스트에서 이미 이 배우를 태깅해둔 파일이 있다면 "작품 추가"를 따로 거치지 않아도 Credits에 반영된다.
+    - **작품 추가 → 배우 자동 태깅**: 아래 "작품 추가 창"으로 새 품번을 추가하면, 관리 리스트에 그 품번의 실제 파일이 있는 경우 `UpdateManagedItemActorsForCredit`가 그 파일의 `Actors`에도 이 배우를 자동으로 추가한다(이미 지정돼 있으면 건드리지 않음).
+    - **칩 좌클릭 → 속성 창 열기**: Credits 칩을 클릭하면 관리 리스트에서 일치하는 항목을 찾아 `PropertiesWindow`를 연다. 일치하는 파일이 없으면(연한 파란색 칩) 안내 메시지만 표시한다.
+    - **칩 우클릭 → Credits에서 삭제**: 확인 대화상자 후 이 배우의 Credits에서만 제거한다(관리 리스트의 파일 자체나 그 파일의 `Actors`는 건드리지 않음).
+    - 배우 이름 변경/삭제 시에는 Credits 자체를 별도로 옮기지 않는다(Credits는 배우별 데이터이므로 `ActorItem`과 함께 그대로 유지/삭제됨).
+- **작품 추가 창 (`AddCreditWindow`, 2026-08-02 추가, 구현 완료)**: "작품 추가" 버튼으로 여는 대화상자(기본 크기 520x420).
+  - 품번을 직접 입력할 수 있는 텍스트 상자가 있다.
+  - 입력할 때마다(`TextChanged`) 관리 리스트에서 부분 일치하는 항목을 찾아 **썸네일 + 품번**으로 미리보기 목록을 보여준다(최대 50개, 품번 기준 오름차순). 미리보기 항목을 더블클릭하면 그 품번이 입력란에 채워진다.
+  - 관리 리스트에 없는 품번도 자유롭게 입력해서 "확인"으로 추가할 수 있다(미리보기는 어디까지나 참고용이며 입력을 제한하지 않음).
+- **배우 Credits ↔ 관리 리스트 상호 동기화 (`ActorCreditSync.cs`, 2026-08-02 추가, 구현 완료)**: 위에서 설명한 개별 동기화 지점들을 한 클래스에 모아둔 공용 로직이다.
+  - `OnFileRenamed(item, oldFileName, masterActors)`: 파일명이 바뀌면(`RenameHelper.TryRenameManagedItemTo`/`TryEditFullPath` 성공 시 호출) ① 이 파일에 이미 지정된 배우들 중 옛 품번을 Credits로 갖고 있던 배우는 새 품번으로 값을 갱신하고, ② 새 품번이 이미 다른(아직 파일 없이 "연한 파란색"으로만 있던) 배우의 Credits와 일치하면 그 배우를 이 파일의 `Actors`에 자동으로 추가한다. 우연히 같은 문자열을 Credits로 가진, 이 파일과 무관한 배우의 데이터까지 건드리지 않도록 ①은 이 파일에 이미 지정된 배우만 대상으로 한다.
+  - `OnActorRemovedFromItem(item, removedActorName, masterActors)`: `PropertiesWindow`에서 배우 칩을 제거하고 커밋하면, 그 배우의 Credits에서 이 파일의 품번을 제거한다.
+  - `RenameHelper`의 관련 메서드들은 이제 `masterActors`를 매개변수로 받는다 — `MainWindow`의 F2/우클릭 "이름변경"도 같은 경로를 타므로 어느 진입점으로 rename해도 동일하게 동기화된다.
 - **썸네일 저장 방식(`ThumbnailHelper.CreateActorThumbnail`)**: 동영상 썸네일과 달리 원본 이미지는 별도로 보관하지 않고, 가로세로 비율을 유지한 채 **100x100 이내로 리사이즈한 결과만** 저장한다(동영상 썸네일의 320x240 로직과 같은 방식으로 축소 비율을 계산하되 크기만 다름). 저장 위치는 `%LOCALAPPDATA%\VideoVault\actresses\{배우명}.jpg`이며(`AppPaths.ActorsThumbnailDir`), 파일명에 쓸 수 없는 문자는 `_`로 치환한다. 소스로 쓰인 원본 파일은 저장이 끝나면 삭제한다(드래그 앤 드롭 임시 파일 정리 포함, 동영상 썸네일과 동일한 원칙).
 - **화면 노출**:
   - **속성 창(`PropertiesWindow`)**: "배우" 항목이 콤보박스(배우 마스터 목록에서 선택) + "추가" 버튼으로 되어 있다. 추가하면 아래에 칩(chip) 형태로 표시되고, 칩의 "✕"를 클릭하면 제거된다 — 여러 명을 반복해서 추가/제거할 수 있다.
@@ -376,8 +399,7 @@ Constants.cs                  # 하드코딩 문자열 상수 모음
 
 - 재생하려는 파일이 존재하지 않는 경우 → 재생 실패 메시지, 관리 리스트 항목은 유지
 - 파일/폴더 접근 권한이 없는 경우 → 오류 메시지
-- `library.json` 손상(파싱 실패) → 오류 메시지 표시 후 빈 관리 리스트로 시작할지, 로딩을 막고 사용자가 직접 조치하게 할지는 추후 결정 필요
-- `tags.json` 손상 → 위와 동일한 결정 필요
+- **시작 시 로딩 실패 처리(2026-08-02 개선, 구현 완료)**: `MainWindow.LoadInitialData()`가 활성 라이브러리/제거된 라이브러리/태그/배우/설정/누락 파일 정리 6단계를 각각 독립된 `LoadStep(설명, 동작)` 헬퍼로 감싼다 — 한 단계가 손상된 파일 등으로 실패해도 그 단계만 오류 메시지를 띄우고 건너뛴 뒤 나머지 단계는 계속 진행한다(예: `tags.json`이 손상돼도 `actors.json`/`settings.json` 로딩과 누락 파일 정리는 정상 진행됨). 예전에는 전체가 하나의 try/catch였어서 첫 실패 지점 이후 모든 로딩이 통째로 중단됐다. `library.json`/`tags.json`처럼 특정 파일이 손상됐을 때 "빈 목록으로 시작"할지 "로딩을 막고 사용자가 직접 조치"하게 할지는 여전히 추후 결정 필요 — 지금은 오류 메시지를 띄우고 그 단계만 빈 상태로 건너뛴다.
 - 썸네일 이미지 손상/깨짐 → [썸네일 관리](#썸네일-관리) 절 참고
 
 ## 성능
@@ -449,18 +471,26 @@ ITagRepository
 
 ```json
 [
-    { "Name": "이즈미 리온", "ThumbnailPath": "C:\\Users\\...\\VideoVault\\actresses\\이즈미 리온.jpg", "BirthYear": 1994, "Height": 158, "BodyInfo": "B83 W58 H85" },
-    { "Name": "쿠로카와 사리나", "ThumbnailPath": null, "BirthYear": null, "Height": null, "BodyInfo": "" }
+    { "Name": "이즈미 리온", "ThumbnailPath": "C:\\Users\\...\\VideoVault\\actresses\\이즈미 리온.jpg", "BirthYear": 1994, "Height": 158, "BodyInfo": "B83 W58 H85", "Credits": ["SSNI-123", "SSNI-456"] },
+    { "Name": "쿠로카와 사리나", "ThumbnailPath": null, "BirthYear": null, "Height": null, "BodyInfo": "", "Credits": [] }
 ]
 ```
 
-관리 리스트 항목의 `Actors` 필드는 이 마스터 목록의 `Name` 값만 참조하도록 유지한다 (마스터 목록에 없는 배우가 항목에 들어가지 않도록 UI에서 강제). 썸네일 이미지 파일 자체는 `%LOCALAPPDATA%\VideoVault\actresses\` 폴더에 `{배우명}.jpg`로 저장된다 — [배우 마스터 목록 관리](#배우-마스터-목록-관리-actormanagerwindow) 참고.
+관리 리스트 항목의 `Actors` 필드는 이 마스터 목록의 `Name` 값만 참조하도록 유지한다 (마스터 목록에 없는 배우가 항목에 들어가지 않도록 UI에서 강제). 썸네일 이미지 파일 자체는 `%LOCALAPPDATA%\VideoVault\actresses\` 폴더에 `{배우명}.jpg`로 저장된다 — [배우 마스터 목록 관리](#배우-마스터-목록-관리-actormanagerwindow) 참고. `Credits`(품번 목록)는 관리 리스트의 `Actors`와 `ActorCreditSync`로 상호 동기화된다 — 같은 절 참고.
 
 ## 컨벤션
 
 - UI는 XAML로, 로직은 code-behind 또는 별도 클래스로 분리한다. 신규 기능은 [아키텍처](#아키텍처) 절의 Repository/Service/ViewModel 계층을 따른다.
 - 새 화면/윈도우를 추가할 때는 기존 `MainWindow.xaml` 패턴(XAML + `.xaml.cs`)을 따른다.
-- 화면(윈도우) 기본 크기는 **1920x1080**으로 설정한다 (`Width`, `Height` 속성 기준). **예외**: `MainWindow`는 `Height="1200" Width="1720"`(2026-08-02 변경 — 예전에는 1080x1920, 그 다음 1200x1200이었음).
+- 화면(윈도우) 기본 크기는 일괄된 고정값을 따르지 않고, 창의 용도와 내용물에 맞게 개별적으로 정한다(2026-08-02 정정 — 예전에는 "기본 1920x1080, MainWindow만 예외"라고 되어 있었으나 실제로는 지켜진 적이 없어 문서를 실제 관행에 맞게 고쳤다). 새 창을 추가할 때도 내용에 맞는 크기를 자유롭게 정하면 된다. 참고로 현재 각 창의 실제 크기는 다음과 같다:
+  - `MainWindow`: `Height="1200" Width="1720"`
+  - `FolderListWindow`: `Height="700" Width="1000"`
+  - `PropertiesWindow`: `Height="1200" Width="500"`
+  - `ActorManagerWindow`: `Height="1000" Width="1000"`
+  - `TagManagerWindow`: `Height="500" Width="400"`
+  - `ActorInfoWindow`: `Height="290" Width="380"`
+  - `RenameWindow`: `Height="150" Width="420"`
+  - `OriginalImageWindow`: `Height="800" Width="1000"`
 - 동영상 파일 확장자 목록은 `FolderListWindow.xaml.cs`의 `VideoExtensions` 배열에서 관리한다.
 - 관리 리스트의 데이터 모델(JSON 직렬화 대상) 및 JSON 파일 읽기/쓰기 로직은 UI 코드(`MainWindow.xaml.cs`)와 분리한 별도 클래스로 관리한다.
 - "폴더 목록"(임시 스캔 결과)과 "관리 리스트"(영속 데이터)는 서로 다른 데이터 소스이므로 혼동하지 않도록 변수/컬렉션 이름을 명확히 구분한다.
@@ -483,6 +513,7 @@ ITagRepository
 - 태그 마스터 목록에서 태그 이름 변경/삭제 시 관리 리스트의 `Tags` 필드와 항상 동기화되도록 한다 (마스터 목록에 없는 태그가 관리 리스트에 남아있지 않도록 함).
 - 자동 저장은 항상 기본 저장 위치(`library.json`)를 대상으로 한다. "열기"로 다른 JSON 파일을 불러오면 그 내용이 메모리상의 관리 리스트를 대체하고 이후 변경 시 기본 위치에 자동 저장되지만, 열었던 파일 자체가 자동 저장 대상으로 바뀌지는 않는다. "다른 이름으로 저장"은 기본 저장 위치와 무관한 1회성 내보내기다.
 - **CLAUDE.md를 수정하기 전에는 항상 수정 전 내용을 같은 폴더에 `CLAUDE_yy_mm_dd_#.md`(예: `CLAUDE_26_07_31_1.md`, 같은 날 여러 번 백업 시 `#`을 1부터 증가)로 백업한 뒤 수정한다.**
+- **기능을 추가/변경/수정할 때는 그 작업이 끝나는 시점에 CLAUDE.md도 함께 업데이트한다.** (2026-08-02 명시적으로 규칙화 — 여러 기능을 구현하고도 CLAUDE.md 업데이트를 미룬 적이 있어, 이후에는 코드 변경과 문서 업데이트를 같은 작업 단위로 취급한다.) 새 파일을 추가했으면 "현재 구현된 파일" 목록에, 동작이 바뀌었으면 관련 기능 절에 반영하고, 필요하면 데이터 모델/컨벤션 절도 함께 갱신한다.
 - 비동기 메서드는 이름에 `Async` 접미사를 붙인다 (예: `LoadVideoFilesAsync`).
 - Nullable reference type을 활성화한다 (`<Nullable>enable</Nullable>`, 이미 csproj에 설정되어 있음).
 - 파일 경로 조합은 문자열 연결 대신 `Path.Combine`을 사용한다.

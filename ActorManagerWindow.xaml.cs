@@ -16,14 +16,16 @@ namespace VideoVault;
 public partial class ActorManagerWindow : Window
 {
     private readonly ObservableCollection<ActorItem> _masterActors;
-    private readonly IEnumerable<ManagedVideoItem> _managedItems;
+    private readonly ObservableCollection<ManagedVideoItem> _managedItems;
+    private readonly IEnumerable<string> _masterTags;
     private readonly ICollectionView _actorsView;
 
-    public ActorManagerWindow(ObservableCollection<ActorItem> masterActors, IEnumerable<ManagedVideoItem> managedItems)
+    public ActorManagerWindow(ObservableCollection<ActorItem> masterActors, ObservableCollection<ManagedVideoItem> managedItems, IEnumerable<string> masterTags)
     {
         InitializeComponent();
         _masterActors = masterActors;
         _managedItems = managedItems;
+        _masterTags = masterTags;
 
         _actorsView = CollectionViewSource.GetDefaultView(_masterActors);
         _actorsView.SortDescriptions.Add(new SortDescription(nameof(ActorItem.Name), ListSortDirection.Ascending));
@@ -33,6 +35,14 @@ public partial class ActorManagerWindow : Window
     }
 
     private ActorItem? SelectedActor => ActorsListBox.SelectedItem as ActorItem;
+
+    private class CreditChip
+    {
+        public string Code { get; set; } = string.Empty;
+
+        /// <summary>이 품번의 파일이 현재 관리 리스트(활성/제거됨 모두)에 실제로 있으면 true → 진한 파란색으로 표시.</summary>
+        public bool HasFile { get; set; }
+    }
 
     private void ActorsListBox_SelectionChanged(object sender, SelectionChangedEventArgs e) => RefreshThumbnailPreview();
 
@@ -286,6 +296,162 @@ public partial class ActorManagerWindow : Window
         }
 
         RefreshActorInfoPanel(actor);
+        RefreshCreditsPanel(actor);
+    }
+
+    /// <summary>
+    /// 선택된 배우의 Credits(품번 목록)를 관리 리스트와 대조해서 보여준다. 관리 리스트(활성/제거됨 모두)에
+    /// 같은 품번(파일명, 확장자 제외)의 파일이 실제로 있으면 진한 파란색, 없으면 연한 파란색으로 표시된다.
+    /// 표시하기 전에 관리 리스트를 먼저 찾아서 Credits를 최신 상태로 동기화한다(<see cref="SyncCreditsFromManagedItems"/>).
+    /// </summary>
+    private void RefreshCreditsPanel(ActorItem? actor)
+    {
+        if (actor is null)
+        {
+            CreditsList.ItemsSource = null;
+            return;
+        }
+
+        SyncCreditsFromManagedItems(actor);
+
+        var libraryCodes = _managedItems
+            .Select(m => Path.GetFileNameWithoutExtension(m.FileName))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        CreditsList.ItemsSource = actor.Credits
+            .Select(code => new CreditChip { Code = code, HasFile = libraryCodes.Contains(code) })
+            .ToList();
+    }
+
+    /// <summary>
+    /// 관리 리스트에서 이 배우가 Actors로 지정된 항목들의 품번(파일명, 확장자 제외)을 찾아 Credits에 자동으로
+    /// 병합한다 — 이미 관리 리스트에서 이 배우를 지정해둔 파일이 있다면, 따로 "작품 추가"를 거치지 않아도
+    /// Credits 목록에 반영되도록 하기 위함이다. 이미 Credits에 있는 값은 건드리지 않는다.
+    /// </summary>
+    private void SyncCreditsFromManagedItems(ActorItem actor)
+    {
+        var codesFromLibrary = _managedItems
+            .Where(m => m.Actors.Any(a => string.Equals(a, actor.Name, StringComparison.OrdinalIgnoreCase)))
+            .Select(m => Path.GetFileNameWithoutExtension(m.FileName))
+            .Where(code => !string.IsNullOrEmpty(code))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        var missing = codesFromLibrary
+            .Where(code => !actor.Credits.Any(c => string.Equals(c, code, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+
+        if (missing.Count > 0)
+        {
+            var updated = new List<string>(actor.Credits);
+            updated.AddRange(missing);
+            actor.SetCredits(updated);
+        }
+    }
+
+    /// <summary>
+    /// 새로 추가한 품번이 관리 리스트에 실제로 있는 파일이면, 그 항목의 Actors에도 이 배우를 추가해서
+    /// (이미 지정돼 있지 않은 경우에만) 배우 정보를 최신 상태로 맞춘다.
+    /// </summary>
+    private void UpdateManagedItemActorsForCredit(ActorItem actor, string code)
+    {
+        var matches = _managedItems.Where(m =>
+            string.Equals(Path.GetFileNameWithoutExtension(m.FileName), code, StringComparison.OrdinalIgnoreCase));
+
+        foreach (var item in matches)
+        {
+            if (!item.Actors.Any(a => string.Equals(a, actor.Name, StringComparison.OrdinalIgnoreCase)))
+            {
+                var updatedActors = new List<string>(item.Actors) { actor.Name };
+                item.SetActors(updatedActors);
+            }
+        }
+    }
+
+    private void AddCredit_Click(object sender, RoutedEventArgs e)
+    {
+        var actor = SelectedActor;
+        if (actor is null)
+        {
+            MessageBox.Show("작품을 추가할 배우를 먼저 선택하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dialog = new AddCreditWindow(_managedItems) { Owner = this };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        if (actor.Credits.Any(c => string.Equals(c, dialog.ProductCode, StringComparison.OrdinalIgnoreCase)))
+        {
+            MessageBox.Show("이미 추가된 품번입니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var updated = new List<string>(actor.Credits) { dialog.ProductCode };
+        actor.SetCredits(updated);
+        UpdateManagedItemActorsForCredit(actor, dialog.ProductCode);
+        RefreshCreditsPanel(actor);
+    }
+
+    /// <summary>품명(Credit) 칩을 클릭하면 관리 리스트에서 일치하는 항목의 속성 창을 연다. 일치하는 파일이 없으면 안내만 표시한다.</summary>
+    private void CreditChip_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: string code })
+        {
+            return;
+        }
+
+        var match = _managedItems.FirstOrDefault(m =>
+            string.Equals(Path.GetFileNameWithoutExtension(m.FileName), code, StringComparison.OrdinalIgnoreCase));
+
+        if (match is null)
+        {
+            MessageBox.Show("관리 리스트에 이 품번의 파일이 없습니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dialog = new PropertiesWindow(match, _masterTags, _masterActors) { Owner = this };
+        dialog.ShowDialog();
+
+        if (dialog.PermanentlyDeleted)
+        {
+            _managedItems.Remove(match);
+        }
+
+        RefreshCreditsPanel(SelectedActor);
+        e.Handled = true;
+    }
+
+    private void CreditChip_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: string code })
+        {
+            return;
+        }
+
+        var actor = SelectedActor;
+        if (actor is null)
+        {
+            return;
+        }
+
+        var result = MessageBox.Show(
+            $"'{code}' 항목을 Credits에서 제거하시겠습니까?",
+            "삭제 확인",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        var updated = actor.Credits.Where(c => !string.Equals(c, code, StringComparison.OrdinalIgnoreCase)).ToList();
+        actor.SetCredits(updated);
+        RefreshCreditsPanel(actor);
+
+        e.Handled = true;
     }
 
     private void RefreshActorInfoPanel(ActorItem? actor)

@@ -12,6 +12,29 @@
         <ContextMenu x:Key="ActorItemContextMenu">
             <MenuItem Header="배우 정보 수정" Click="EditActorInfo_Click"/>
         </ContextMenu>
+        <!-- Credits 칩: 태그 칩과 같은 모양(둥근 배경, 패딩)에 관리 리스트 보유 여부에 따라 색만 다르게 -->
+        <Style x:Key="CreditChipBorderStyle" TargetType="Border">
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="6,2"/>
+            <Setter Property="Margin" Value="0,0,4,4"/>
+            <Setter Property="Background" Value="#CFE2F3"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="ToolTip" Value="클릭하여 속성 열기 / 우클릭하여 Credits에서 삭제"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HasFile}" Value="True">
+                    <Setter Property="Background" Value="#3D6FB4"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="CreditChipTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="#1B3A5C"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HasFile}" Value="True">
+                    <Setter Property="Foreground" Value="White"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
     <Grid Margin="10">
         <Grid.ColumnDefinitions>
@@ -116,6 +139,31 @@
             <TextBlock x:Name="ActorBirthYearInfoText" TextWrapping="Wrap" Margin="0,0,0,3"/>
             <TextBlock x:Name="ActorHeightInfoText" TextWrapping="Wrap" Margin="0,0,0,3"/>
             <TextBlock x:Name="ActorBodyInfoText" TextWrapping="Wrap" Margin="0,0,0,3"/>
+
+            <!-- 배우 정보 밑에 이 배우가 출연한 것으로 등록된 품번(Credits) 표시. 진한 파란색=관리 리스트에 실제 파일 있음 -->
+            <Grid Margin="0,15,0,5">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="Credits" FontWeight="Bold" VerticalAlignment="Center"/>
+                <Button Grid.Column="1" Content="작품 추가" Padding="6,2" Click="AddCredit_Click"/>
+            </Grid>
+            <ItemsControl x:Name="CreditsList">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource CreditChipBorderStyle}" Tag="{Binding Code}"
+                                MouseLeftButtonUp="CreditChip_MouseLeftButtonUp" MouseRightButtonUp="CreditChip_MouseRightButtonUp">
+                            <TextBlock Text="{Binding Code}" Style="{StaticResource CreditChipTextStyle}"/>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
         </StackPanel>
     </Grid>
 </Window>

@@ -35,14 +35,18 @@
                     <RowDefinition Height="Auto"/> <!-- 11: 썸네일 경로 -->
                 </Grid.RowDefinitions>
 
-                <!-- 파일명: 수정 가능한 텍스트 상자, 포커스를 잃으면(내용이 바뀐 경우) 즉시 실제 파일명에 반영 -->
+                <!-- 파일명: 이름/확장자를 분리한 두 개의 수정 가능한 텍스트 상자(같은 줄). 포커스를 잃으면(내용이 바뀐 경우) 즉시 실제 파일명에 반영 -->
                 <Grid Grid.Row="0" Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0" Text="파일명:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                    <TextBox x:Name="FileNameText" Grid.Column="1" VerticalAlignment="Center" LostFocus="FileNameText_LostFocus"/>
+                    <TextBox x:Name="FileNameText" Grid.Column="1" VerticalAlignment="Center" LostFocus="FileNamePart_LostFocus"/>
+                    <TextBlock Grid.Column="2" Text="." VerticalAlignment="Center" Margin="3,0,2,0"/>
+                    <TextBox x:Name="FileExtensionText" Grid.Column="3" Width="70" VerticalAlignment="Center" LostFocus="FileNamePart_LostFocus"/>
                 </Grid>
 
                 <!-- 코드: 파일명의 첫 "-" 이전 부분을 자동으로 제안하며, 직접 수정도 가능. 옆에 출시일(자유 텍스트) 배치 -->
@@ -188,11 +192,18 @@
                     </ScrollViewer>
                 </Grid>
 
-                <!-- 썸네일 추가/삭제 버튼 -->
-                <StackPanel Grid.Row="9" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,5">
-                    <Button Content="썸네일 추가" Padding="8,3" Margin="0,0,5,0" Click="AddThumbnailButton_Click"/>
-                    <Button Content="썸네일 삭제" Padding="8,3" Click="DeleteThumbnailButton_Click"/>
-                </StackPanel>
+                <!-- 품번(왼쪽 정렬) + 썸네일 추가/삭제 버튼(오른쪽), 같은 줄 -->
+                <Grid Grid.Row="9" Margin="0,10,0,5">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="ProductCodeText" Grid.Column="0" VerticalAlignment="Center" FontWeight="Bold"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <Button Content="썸네일 추가" Padding="8,3" Margin="0,0,5,0" Click="AddThumbnailButton_Click"/>
+                        <Button Content="썸네일 삭제" Padding="8,3" Click="DeleteThumbnailButton_Click"/>
+                    </StackPanel>
+                </Grid>
 
                 <!-- 썸네일 뷰어: 가운데 정렬, 클릭하면 원본 이미지 보기, 드래그 앤 드롭으로 썸네일 지정 -->
                 <Border Grid.Row="10" Width="320" Height="240" HorizontalAlignment="Center" Margin="0,0,0,5" Cursor="Hand"

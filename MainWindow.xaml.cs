@@ -317,52 +317,82 @@ public partial class MainWindow : Window
         _suppressAutoSave = true;
         try
         {
-            if (File.Exists(AppPaths.LibraryPath))
+            LoadStep("관리 리스트(활성)", () =>
             {
-                foreach (var item in ManagedListRepository.Load(AppPaths.LibraryPath))
+                if (File.Exists(AppPaths.LibraryPath))
                 {
-                    _managedItems.Add(item);
+                    foreach (var item in ManagedListRepository.Load(AppPaths.LibraryPath))
+                    {
+                        _managedItems.Add(item);
+                    }
                 }
-            }
+            });
 
-            if (File.Exists(AppPaths.RemovedLibraryPath))
+            LoadStep("관리 리스트(제거됨)", () =>
             {
-                foreach (var item in ManagedListRepository.Load(AppPaths.RemovedLibraryPath))
+                if (File.Exists(AppPaths.RemovedLibraryPath))
                 {
-                    _managedItems.Add(item);
+                    foreach (var item in ManagedListRepository.Load(AppPaths.RemovedLibraryPath))
+                    {
+                        _managedItems.Add(item);
+                    }
                 }
-            }
+            });
 
-            if (File.Exists(AppPaths.TagsPath))
+            LoadStep("태그 목록", () =>
             {
-                foreach (var tag in TagRepository.Load(AppPaths.TagsPath))
+                if (File.Exists(AppPaths.TagsPath))
                 {
-                    _masterTags.Add(tag);
+                    foreach (var tag in TagRepository.Load(AppPaths.TagsPath))
+                    {
+                        _masterTags.Add(tag);
+                    }
                 }
-            }
+            });
 
-            if (File.Exists(AppPaths.ActorsPath))
+            LoadStep("배우 목록", () =>
             {
-                foreach (var actor in ActorRepository.Load(AppPaths.ActorsPath))
+                if (File.Exists(AppPaths.ActorsPath))
                 {
-                    _masterActors.Add(actor);
+                    foreach (var actor in ActorRepository.Load(AppPaths.ActorsPath))
+                    {
+                        _masterActors.Add(actor);
+                    }
                 }
-            }
+            });
 
-            if (File.Exists(AppPaths.SettingsPath))
+            LoadStep("설정", () =>
             {
-                ApplySettings(SettingsRepository.Load(AppPaths.SettingsPath));
-            }
+                if (File.Exists(AppPaths.SettingsPath))
+                {
+                    ApplySettings(SettingsRepository.Load(AppPaths.SettingsPath));
+                }
+            });
 
-            ReconcileMissingFiles();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"저장된 데이터를 불러오는 중 오류가 발생했습니다.\n{ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+            LoadStep("파일 존재 여부 확인", ReconcileMissingFiles);
         }
         finally
         {
             _suppressAutoSave = false;
+        }
+    }
+
+    /// <summary>
+    /// 시작 시 로딩 단계 하나를 실행한다. 한 단계가 손상된 파일 등으로 실패해도 그 단계만 건너뛰고
+    /// 나머지 단계(다른 JSON 파일 로딩 등)는 계속 진행하기 위해, 단계별로 독립된 try/catch를 둔다
+    /// (예: tags.json이 손상돼도 actors.json/settings.json 로딩과 누락 파일 정리는 그대로 진행됨).
+    /// </summary>
+    private static void LoadStep(string description, Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"{description}을(를) 불러오는 중 오류가 발생했습니다. 이 항목은 건너뛰고 계속 진행합니다.\n{ex.Message}",
+                "오류", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -483,13 +513,23 @@ public partial class MainWindow : Window
         }
 
         ScheduleAutoSave();
-        UpdateManagedCountDisplay();
+
+        // 시작 시 LoadInitialData()가 항목을 하나씩 Add할 때마다 전체를 다시 스캔하지 않도록,
+        // 로딩 중(_suppressAutoSave)에는 건너뛰고 로딩이 끝난 뒤 한 번만 계산한다(생성자 마지막 호출).
+        if (!_suppressAutoSave)
+        {
+            UpdateManagedCountDisplay();
+        }
     }
 
     private void ManagedItem_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         ScheduleAutoSave();
-        UpdateManagedCountDisplay();
+
+        if (!_suppressAutoSave)
+        {
+            UpdateManagedCountDisplay();
+        }
     }
 
     /// <summary>관리 리스트 제목 옆에 전체/썸네일 있음/제거됨 개수를 표시한다.</summary>
@@ -699,7 +739,7 @@ public partial class MainWindow : Window
 
     private void ManageActors_Click(object sender, RoutedEventArgs e)
     {
-        var window = new ActorManagerWindow(_masterActors, _managedItems) { Owner = this };
+        var window = new ActorManagerWindow(_masterActors, _managedItems, _masterTags) { Owner = this };
         window.ShowDialog();
         _managedView.Refresh();
         UpdateSelectedItemDetails();
@@ -1073,7 +1113,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        RenameHelper.TryRenameManagedItem(this, item);
+        RenameHelper.TryRenameManagedItem(this, item, _masterActors);
     }
 
     // ===================== 관리 리스트: 속성 / 재생 / 제거 =====================

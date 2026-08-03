@@ -47,7 +47,8 @@ public partial class PropertiesWindow : Window
 
     private void RefreshFileInfo()
     {
-        FileNameText.Text = _item.FileName;
+        FileNameText.Text = Path.GetFileNameWithoutExtension(_item.FileName);
+        FileExtensionText.Text = TrimLeadingDot(Path.GetExtension(_item.FileName));
         CodeBox.Text = string.IsNullOrEmpty(_item.Code)
             ? ManagedVideoItem.DeriveCode(_item.FileName, _item.FullPath)
             : _item.Code;
@@ -57,7 +58,17 @@ public partial class PropertiesWindow : Window
         FullPathText.Text = _item.FullPath;
         PlayCountBox.Text = _item.PlayCount.ToString();
         MemoBox.Text = _item.Memo;
+        RefreshProductCodeDisplay();
     }
+
+    /// <summary>썸네일 버튼 줄 왼쪽의 "품번" 표시(파일명에서 확장자를 뺀 부분)를 최신 파일명 기준으로 갱신한다.</summary>
+    private void RefreshProductCodeDisplay()
+    {
+        ProductCodeText.Text = $"품번: {Path.GetFileNameWithoutExtension(_item.FileName)}";
+    }
+
+    private static string TrimLeadingDot(string extension) =>
+        extension.StartsWith('.') ? extension[1..] : extension;
 
     private void RefreshSelectedActorsThumbnails()
     {
@@ -78,34 +89,66 @@ public partial class PropertiesWindow : Window
         NoTagsHint.Visibility = _tagItems.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    /// <summary>파일명 텍스트 상자에서 포커스가 벗어나면(내용이 바뀐 경우) 바로 실제 파일 이름 변경을 적용한다.</summary>
-    private void FileNameText_LostFocus(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// 파일명/확장자 텍스트 상자 중 하나에서 포커스가 벗어나면(내용이 바뀐 경우) 두 값을 합쳐 바로 실제
+    /// 파일 이름 변경을 적용한다.
+    /// </summary>
+    private void FileNamePart_LostFocus(object sender, RoutedEventArgs e)
     {
-        var newName = FileNameText.Text.Trim();
+        var newName = ComposeFileName();
         if (string.Equals(newName, _item.FileName, StringComparison.Ordinal))
         {
             return;
         }
 
-        if (RenameHelper.TryRenameManagedItemTo(_item, newName))
+        if (RenameHelper.TryRenameManagedItemTo(_item, newName, _masterActors))
         {
             FullPathText.Text = _item.FullPath;
             CodeBox.Text = ManagedVideoItem.DeriveCode(_item.FileName, _item.FullPath);
             RefreshThumbnailPreview();
+            RefreshProductCodeDisplay();
+            SyncSelectedActorsFromItem();
         }
         else
         {
-            FileNameText.Text = _item.FileName;
+            FileNameText.Text = Path.GetFileNameWithoutExtension(_item.FileName);
+            FileExtensionText.Text = TrimLeadingDot(Path.GetExtension(_item.FileName));
         }
+    }
+
+    /// <summary>
+    /// rename 시 <see cref="ActorCreditSync.OnFileRenamed"/>가 새 품번과 일치하는 Credits를 가진 배우를
+    /// `_item.Actors`에 직접 추가할 수 있으므로, 화면에 보여주는 배우 선택 상태(`_selectedActors`)도 최신으로
+    /// 맞춰준다 — 그렇지 않으면 "확인" 시 오래된 `_selectedActors`로 덮어써서 방금 추가된 배우가 사라진다.
+    /// </summary>
+    private void SyncSelectedActorsFromItem()
+    {
+        _selectedActors.Clear();
+        foreach (var name in _item.Actors)
+        {
+            _selectedActors.Add(name);
+        }
+
+        RefreshSelectedActorsThumbnails();
+    }
+
+    private string ComposeFileName()
+    {
+        var name = FileNameText.Text.Trim();
+        var extension = FileExtensionText.Text.Trim().TrimStart('.');
+        return extension.Length == 0 ? name : $"{name}.{extension}";
     }
 
     private void ChangeFileButton_Click(object sender, RoutedEventArgs e)
     {
-        if (RenameHelper.TryEditFullPath(this, _item))
+        if (RenameHelper.TryEditFullPath(this, _item, _masterActors))
         {
-            FileNameText.Text = _item.FileName;
+            FileNameText.Text = Path.GetFileNameWithoutExtension(_item.FileName);
+            FileExtensionText.Text = TrimLeadingDot(Path.GetExtension(_item.FileName));
             FullPathText.Text = _item.FullPath;
             RefreshThumbnailPreview();
+            RefreshProductCodeDisplay();
+            SyncSelectedActorsFromItem();
         }
     }
 
@@ -350,12 +393,24 @@ public partial class PropertiesWindow : Window
             return false;
         }
 
+        // _item.Actors를 덮어쓰기 전에, 화면에서 빠진(사용자가 ✕로 제거한) 배우를 미리 찾아둔다 —
+        // 그 배우의 Credits에서도 이 파일의 품번을 제거해야 하므로(ActorCreditSync.OnActorRemovedFromItem).
+        var removedActors = _item.Actors
+            .Where(a => !_selectedActors.Contains(a, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+
         _item.PlayCount = playCount;
         _item.Code = CodeBox.Text.Trim();
         _item.ReleaseDate = ReleaseDateBox.Text.Trim();
         _item.Memo = MemoBox.Text.Trim();
         _item.SetTags(_tagItems.Where(t => t.IsSelected).Select(t => t.Tag).ToList());
         _item.SetActors(_selectedActors.ToList());
+
+        foreach (var removedActor in removedActors)
+        {
+            ActorCreditSync.OnActorRemovedFromItem(_item, removedActor, _masterActors);
+        }
+
         return true;
     }
 

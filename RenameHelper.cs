@@ -9,7 +9,7 @@ namespace VideoVault;
 /// </summary>
 public static class RenameHelper
 {
-    public static bool TryRenameManagedItem(Window owner, ManagedVideoItem item)
+    public static bool TryRenameManagedItem(Window owner, ManagedVideoItem item, IEnumerable<ActorItem> masterActors)
     {
         var dialog = new RenameWindow(item.FileName) { Owner = owner };
         if (dialog.ShowDialog() != true)
@@ -17,14 +17,14 @@ public static class RenameHelper
             return false;
         }
 
-        return TryRenameManagedItemTo(item, dialog.NewFileName);
+        return TryRenameManagedItemTo(item, dialog.NewFileName, masterActors);
     }
 
     /// <summary>
     /// 대화상자 없이 지정된 새 파일명(같은 폴더 내)으로 즉시 rename한다. 유효성 검사(파일명 문자/중복)를 포함한다.
     /// `PropertiesWindow`의 파일명 텍스트 상자처럼, 별도 대화상자 없이 바로 적용해야 하는 곳에서 사용한다.
     /// </summary>
-    public static bool TryRenameManagedItemTo(ManagedVideoItem item, string newFileName)
+    public static bool TryRenameManagedItemTo(ManagedVideoItem item, string newFileName, IEnumerable<ActorItem> masterActors)
     {
         if (string.IsNullOrWhiteSpace(newFileName) || newFileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
         {
@@ -51,6 +51,8 @@ public static class RenameHelper
             return false;
         }
 
+        var oldFileName = item.FileName;
+
         try
         {
             File.Move(item.FullPath, newFullPath);
@@ -60,6 +62,8 @@ public static class RenameHelper
             var newNameNoExt = Path.GetFileNameWithoutExtension(newFileName);
             RenameAssociatedFile(item, directory, newNameNoExt, isThumbnail: true);
             RenameAssociatedFile(item, directory, newNameNoExt, isThumbnail: false);
+
+            ActorCreditSync.OnFileRenamed(item, oldFileName, masterActors);
 
             return true;
         }
@@ -74,7 +78,7 @@ public static class RenameHelper
     /// 관리 리스트 항목이 가리키는 실제 동영상 파일을 파일 대화상자로 고른 새 전체 경로로 이동한다
     /// (폴더/파일명 모두 변경 가능). 대상이 이미 존재하면 대화상자 자체의 덮어쓰기 확인을 거친다.
     /// </summary>
-    public static bool TryEditFullPath(Window owner, ManagedVideoItem item)
+    public static bool TryEditFullPath(Window owner, ManagedVideoItem item, IEnumerable<ActorItem> masterActors)
     {
         var dialog = new SaveFileDialog
         {
@@ -103,6 +107,8 @@ public static class RenameHelper
             return false;
         }
 
+        var oldFileName = item.FileName;
+
         try
         {
             File.Move(item.FullPath, newFullPath, overwrite: true);
@@ -112,6 +118,8 @@ public static class RenameHelper
             var newNameNoExt = Path.GetFileNameWithoutExtension(newFullPath);
             RenameAssociatedFile(item, newDirectory, newNameNoExt, isThumbnail: true);
             RenameAssociatedFile(item, newDirectory, newNameNoExt, isThumbnail: false);
+
+            ActorCreditSync.OnFileRenamed(item, oldFileName, masterActors);
 
             return true;
         }

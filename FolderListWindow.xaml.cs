@@ -87,31 +87,41 @@ public partial class FolderListWindow : Window
 
     private void DeleteFile_Click(object sender, RoutedEventArgs e)
     {
-        if (FolderListView.SelectedItem is not VideoFileItem item)
+        var items = FolderListView.SelectedItems.Cast<VideoFileItem>().ToList();
+        if (items.Count == 0)
         {
             MessageBox.Show("삭제할 파일을 선택하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        var result = MessageBox.Show(
-            $"'{item.FileName}' 파일을 실제로 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.",
-            "삭제 확인",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
+        var question = items.Count == 1
+            ? $"'{items[0].FileName}' 파일을 실제로 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다."
+            : $"선택한 {items.Count}개 파일을 실제로 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.";
 
+        var result = MessageBox.Show(question, "삭제 확인", MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (result != MessageBoxResult.Yes)
         {
             return;
         }
 
-        try
+        var failed = new List<string>();
+        foreach (var item in items)
         {
-            File.Delete(item.FullPath);
-            LoadVideoFiles();
+            try
+            {
+                File.Delete(item.FullPath);
+            }
+            catch (Exception ex)
+            {
+                failed.Add($"{item.FileName}: {ex.Message}");
+            }
         }
-        catch (Exception ex)
+
+        LoadVideoFiles();
+
+        if (failed.Count > 0)
         {
-            MessageBox.Show($"파일을 삭제할 수 없습니다.\n{ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"일부 파일을 삭제하지 못했습니다.\n{string.Join("\n", failed)}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 

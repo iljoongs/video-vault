@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(winget install *)"
+      "Bash(winget install *)",
+      "Bash(dotnet build *)"
     ]
   }
 }
