@@ -12,11 +12,6 @@ namespace VideoVault;
 /// </summary>
 public partial class FolderListWindow : Window
 {
-    private static readonly string[] VideoExtensions =
-    {
-        ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".mpg", ".mpeg"
-    };
-
     private readonly ObservableCollection<ManagedVideoItem> _managedItems;
     private string? _currentFolder;
 
@@ -26,6 +21,7 @@ public partial class FolderListWindow : Window
     public FolderListWindow(ObservableCollection<ManagedVideoItem> managedItems, string? initialFolder)
     {
         InitializeComponent();
+        WindowSnapHelper.Attach(this);
         _managedItems = managedItems;
 
         if (initialFolder is not null && Directory.Exists(initialFolder))
@@ -76,7 +72,7 @@ public partial class FolderListWindow : Window
 
         var items = new DirectoryInfo(_currentFolder)
             .EnumerateFiles("*", SearchOption.AllDirectories)
-            .Where(f => VideoExtensions.Contains(f.Extension.ToLowerInvariant()))
+            .Where(f => ManagedListImporter.VideoExtensions.Contains(f.Extension.ToLowerInvariant()))
             .OrderBy(f => f.Name)
             .Select(f => new VideoFileItem(f))
             .ToList();
@@ -133,55 +129,7 @@ public partial class FolderListWindow : Window
             return;
         }
 
-        var activePaths = _managedItems
-            .Where(m => !m.IsArchived)
-            .Select(m => m.FullPath)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var added = 0;
-        var reused = 0;
-
-        foreach (var selected in FolderListView.SelectedItems.Cast<VideoFileItem>())
-        {
-            if (activePaths.Contains(selected.FullPath))
-            {
-                continue;
-            }
-
-            var archivedMatch = _managedItems.FirstOrDefault(m =>
-                m.IsArchived && string.Equals(m.FileName, selected.FileName, StringComparison.Ordinal));
-
-            if (archivedMatch is not null)
-            {
-                var result = MessageBox.Show(
-                    $"'{selected.FileName}' 파일에 대해 이전에 관리하던 데이터가 있습니다.\n" +
-                    $"(재생횟수 {archivedMatch.PlayCount}, 태그 {archivedMatch.Tags.Count}개)\n\n" +
-                    "기존 데이터를 재사용하시겠습니까?\n예 = 기존 데이터 재사용(경로만 새로 갱신), 아니요 = 새 항목으로 추가",
-                    "기존 데이터 발견",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question);
-
-                if (result == MessageBoxResult.Yes)
-                {
-                    archivedMatch.FullPath = selected.FullPath;
-                    archivedMatch.SizeBytes = selected.SizeBytes;
-                    archivedMatch.ModifiedDate = selected.ModifiedDate;
-                    archivedMatch.IsArchived = false;
-                    activePaths.Add(selected.FullPath);
-                    reused++;
-                    continue;
-                }
-            }
-
-            _managedItems.Add(ManagedVideoItem.FromFolderItem(selected));
-            activePaths.Add(selected.FullPath);
-            added++;
-        }
-
-        if (added == 0 && reused == 0)
-        {
-            MessageBox.Show("선택한 파일은 이미 관리 리스트에 있습니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
+        ManagedListImporter.AddFiles(_managedItems, FolderListView.SelectedItems.Cast<VideoFileItem>());
     }
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();

@@ -11,7 +11,8 @@
         WindowStartupLocation="CenterScreen"
         PreviewKeyDown="MainWindow_PreviewKeyDown"
         Closing="MainWindow_Closing"
-        Loaded="MainWindow_Loaded">
+        Loaded="MainWindow_Loaded"
+        SizeChanged="MainWindow_SizeChanged">
     <Window.Resources>
         <local:ThumbnailPathConverter x:Key="ThumbnailPathConverter"/>
         <ContextMenu x:Key="ManagedItemContextMenu">
@@ -63,7 +64,12 @@
         </DataTemplate>
     </Window.Resources>
     <DockPanel>
-        <Menu DockPanel.Dock="Top">
+        <DockPanel DockPanel.Dock="Top">
+            <Border DockPanel.Dock="Right" Background="{x:Static SystemColors.MenuBarBrush}">
+                <TextBlock x:Name="WindowSizeText" VerticalAlignment="Center"
+                           Margin="0,0,10,0" Foreground="Gray" FontSize="11"/>
+            </Border>
+            <Menu Background="{x:Static SystemColors.MenuBarBrush}">
             <MenuItem Header="파일(_F)">
                 <MenuItem Header="폴더 목록(_O)" Click="OpenFolderList_Click"/>
                 <Separator/>
@@ -88,8 +94,12 @@
             <MenuItem Header="도구(_T)">
                 <MenuItem Header="태그 관리(_T)" Click="ManageTags_Click"/>
                 <MenuItem Header="배우 관리(_A)" Click="ManageActors_Click"/>
+                <MenuItem Header="배우 동기화(_G)" Click="SyncActors_Click"/>
+                <MenuItem Header="시리즈 관리(_S)" Click="ManageSeries_Click"/>
+                <MenuItem Header="시리즈 동기화(_Y)" Click="SyncSeries_Click"/>
             </MenuItem>
-        </Menu>
+            </Menu>
+        </DockPanel>
 
         <Grid Margin="10">
         <!-- ===================== 관리 리스트 (영속 데이터, JSON, 자동 저장) ===================== -->
@@ -101,21 +111,29 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/> <!-- 0: 파일 갯수 / 자동 저장 위치 / 안내 문구 -->
+                    <RowDefinition Height="Auto"/> <!-- 1: 보기 모드 -->
+                    <RowDefinition Height="Auto"/> <!-- 2: 파일 없이 추가 / 목록 추가 / 재생 -->
+                    <RowDefinition Height="Auto"/> <!-- 3: 속성 / 태그 관리 / 배우 관리 / 시리즈 관리 -->
+                    <RowDefinition Height="Auto"/> <!-- 4: 배우 동기화 / 시리즈 동기화 -->
+                    <RowDefinition Height="Auto"/> <!-- 5: 필터 영역 -->
+                    <RowDefinition Height="*"/>    <!-- 6: 리스트/아이콘 뷰 -->
+                    <RowDefinition Height="Auto"/> <!-- 7: 선택된 항목 상세 정보 -->
                 </Grid.RowDefinitions>
 
-                <StackPanel Grid.Row="0" HorizontalAlignment="Left" Margin="0,0,0,10">
-                    <TextBlock Text="관리 리스트" FontWeight="Bold" FontSize="16"/>
-                    <TextBlock x:Name="ManagedCountText" Foreground="Gray" FontSize="12" Margin="0,2,0,0" TextAlignment="Left"/>
+                <!-- 파일 갯수 + 자동 저장 위치(1번째 줄) + 안내 문구(2번째 줄) -->
+                <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock x:Name="ManagedCountText" Foreground="Gray" FontSize="12"/>
+                        <TextBlock Text="    " Foreground="Gray" FontSize="12"/>
+                        <TextBlock x:Name="LibraryPathText" Foreground="Gray" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                    <TextBlock Text="(헤더를 우클릭하면 표시할 컬럼 선택, 클릭하면 정렬 / 더블클릭으로 재생 / F1=속성, F2=이름변경, Ctrl+S=저장)"
+                               Foreground="Gray" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"/>
                 </StackPanel>
 
                 <!-- 선택된 항목의 썸네일 뷰어 (상단 오른쪽). 클릭하면 원본 이미지를 보여주고, 드래그 앤 드롭으로 썸네일을 지정할 수 있다. -->
-                <StackPanel x:Name="ThumbnailPanel" Grid.Row="0" Grid.RowSpan="4" Grid.Column="1"
+                <StackPanel x:Name="ThumbnailPanel" Grid.Row="0" Grid.RowSpan="6" Grid.Column="1"
                             Width="320" Margin="15,0,0,0" VerticalAlignment="Top">
                     <Border Width="320" Height="240" Background="#F0F0F0" BorderBrush="Gray" BorderThickness="1" Cursor="Hand"
                             ToolTip="클릭: 원본 이미지 보기 / 드래그 앤 드롭: 썸네일 지정"
@@ -150,38 +168,48 @@
                     </Border>
                 </StackPanel>
 
+                <!-- 저장/열기/다른 이름으로 저장 버튼은 삭제되었지만 기능은 유지된다 (파일 메뉴 + Ctrl+S) -->
                 <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
-                    <Button Content="저장 (Ctrl+S)" Padding="10,5" Margin="0,0,5,0" Click="SaveNow_Click"/>
-                    <Button Content="열기" Padding="10,5" Margin="0,0,5,0" Click="OpenManagedList_Click"/>
-                    <Button Content="다른 이름으로 저장" Padding="10,5" Margin="0,0,15,0" Click="SaveAsManagedList_Click"/>
-                    <Button Content="목록 추가" Padding="10,5" Margin="0,0,5,0" Click="OpenFolderList_Click"/>
-                    <Button Content="태그 관리" Padding="10,5" Margin="0,0,5,0" Click="ManageTags_Click"/>
-                    <Button Content="배우 관리" Padding="10,5" Margin="0,0,15,0" Click="ManageActors_Click"/>
-                    <TextBlock x:Name="LibraryPathText" VerticalAlignment="Center" Foreground="Gray" TextTrimming="CharacterEllipsis"/>
+                    <RadioButton x:Name="ListViewModeRadio" Content="리스트 보기" GroupName="ViewMode" IsChecked="True" VerticalAlignment="Center" Margin="0,0,10,0" Checked="ViewMode_Changed"/>
+                    <RadioButton x:Name="IconViewModeRadio" Content="아이콘 보기" GroupName="ViewMode" VerticalAlignment="Center" Margin="0,0,15,0" Checked="ViewMode_Changed"/>
+                    <CheckBox x:Name="ShowRemovedItemsCheckBox" Content="제거된 항목도 표시" VerticalAlignment="Center" Checked="ShowRemovedItemsCheckBox_Changed" Unchecked="ShowRemovedItemsCheckBox_Changed"/>
                 </StackPanel>
 
-                <!-- 검색(필터) 영역: 파일명 검색 + 태그 필터 -->
                 <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
+                    <Button Content="파일 없이 추가" Padding="10,5" Margin="0,0,5,0" Click="AddPlaceholderItem_Click"/>
+                    <Button Content="목록 추가" Padding="10,5" Margin="0,0,5,0" Click="OpenFolderList_Click"/>
+                    <Button Content="재생" Padding="10,5" Click="PlayManaged_Click"/>
+                </StackPanel>
+
+                <!-- 이름변경/제거 버튼은 삭제되었지만 F2/Del 단축키와 우클릭 메뉴, 편집 메뉴로 기능은 유지된다 -->
+                <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,10">
+                    <Button Content="속성 (F1)" Padding="10,5" Margin="0,0,5,0" Click="PropertiesManaged_Click"/>
+                    <Button Content="태그 관리" Padding="10,5" Margin="0,0,5,0" Click="ManageTags_Click"/>
+                    <Button Content="배우 관리" Padding="10,5" Margin="0,0,5,0" Click="ManageActors_Click"/>
+                    <Button Content="시리즈 관리" Padding="10,5" Click="ManageSeries_Click"/>
+                </StackPanel>
+
+                <!-- 배우/시리즈 동기화: "속성" 버튼 밑에 배치(2026-08-10 위치 변경 — 예전에는 위 줄 배우 관리/시리즈 관리 옆에 있었음) -->
+                <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,0,0,10">
+                    <Button Content="배우 동기화" Padding="10,5" Margin="0,0,5,0" Click="SyncActors_Click" ToolTip="각 배우의 품번(Credits) 목록을 기준으로, 아직 그 배우가 지정되지 않은 관리 리스트 항목에 배우를 추가한다."/>
+                    <Button Content="시리즈 동기화" Padding="10,5" Click="SyncSeries_Click" ToolTip="각 시리즈의 품번(Credits) 목록을 기준으로, 시리즈가 아직 비어있는 관리 리스트 항목에 해당 시리즈를 채워 넣는다."/>
+                </StackPanel>
+
+                <!-- 검색(필터) 영역: 시리즈 선택(신규) + 파일명 검색 + 폴더명 검색 + 태그/배우 필터 -->
+                <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,0,0,10">
+                    <TextBlock Text="시리즈 선택:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                    <ComboBox x:Name="SeriesFilterComboBox" Width="240" Margin="0,0,15,0" SelectionChanged="SeriesFilterComboBox_SelectionChanged"/>
                     <TextBlock Text="파일명 검색:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                    <TextBox x:Name="NameFilterTextBox" Width="220" Margin="0,0,15,0" TextChanged="NameFilterTextBox_TextChanged"/>
+                    <TextBox x:Name="NameFilterTextBox" Width="80" Margin="0,0,15,0" TextChanged="NameFilterTextBox_TextChanged"/>
+                    <TextBlock Text="폴더명 검색:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                    <TextBox x:Name="FolderFilterTextBox" Width="80" Margin="0,0,15,0" TextChanged="FolderFilterTextBox_TextChanged"/>
                     <Button x:Name="TagFilterButton" Content="태그 필터" Padding="10,5" Margin="0,0,5,0" Click="TagFilterButton_Click"/>
                     <Button x:Name="ActorFilterButton" Content="배우 필터" Padding="10,5" Margin="0,0,15,0" Click="ActorFilterButton_Click"/>
-                    <CheckBox x:Name="ShowRemovedItemsCheckBox" Content="제거된 항목도 표시" VerticalAlignment="Center" Margin="0,0,15,0" Checked="ShowRemovedItemsCheckBox_Changed" Unchecked="ShowRemovedItemsCheckBox_Changed"/>
                     <Button Content="필터 초기화" Padding="10,5" Click="ClearAllFilters_Click"/>
                 </StackPanel>
 
-                <DockPanel Grid.Row="3" Margin="0,0,0,10">
-                    <Button DockPanel.Dock="Left" Content="속성 (F1)" Padding="10,5" Margin="0,0,5,0" Click="PropertiesManaged_Click"/>
-                    <Button DockPanel.Dock="Left" Content="이름변경 (F2)" Padding="10,5" Margin="0,0,5,0" Click="RenameManaged_Click"/>
-                    <Button DockPanel.Dock="Left" Content="재생" Padding="10,5" Margin="0,0,5,0" Click="PlayManaged_Click"/>
-                    <Button DockPanel.Dock="Left" Content="제거" Padding="10,5" Margin="0,0,20,0" Click="RemoveFromManagedList_Click"/>
-                    <RadioButton x:Name="ListViewModeRadio" DockPanel.Dock="Left" Content="리스트 보기" GroupName="ViewMode" IsChecked="True" VerticalAlignment="Center" Margin="0,0,10,0" Checked="ViewMode_Changed"/>
-                    <RadioButton x:Name="IconViewModeRadio" DockPanel.Dock="Left" Content="아이콘 보기" GroupName="ViewMode" VerticalAlignment="Center" Margin="0,0,15,0" Checked="ViewMode_Changed"/>
-                    <TextBlock Text="(헤더를 우클릭하면 표시할 컬럼 선택, 클릭하면 정렬 / 더블클릭으로 재생 / F1=속성, F2=이름변경, Ctrl+S=저장)"
-                               Foreground="Gray" FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap"/>
-                </DockPanel>
-
-                <Grid Grid.Row="4" Grid.ColumnSpan="2">
+                <Grid Grid.Row="6" Grid.ColumnSpan="2"
+                      AllowDrop="True" DragEnter="ManagedList_DragEnter" Drop="ManagedList_Drop">
                     <ListView x:Name="ManagedListView" SelectionMode="Extended" SelectionChanged="ManagedSelection_Changed">
                         <ListView.ItemContainerStyle>
                             <Style TargetType="ListViewItem">
@@ -189,9 +217,16 @@
                                 <EventSetter Event="MouseDoubleClick" Handler="ManagedListRow_MouseDoubleClick"/>
                                 <Setter Property="ContextMenu" Value="{StaticResource ManagedItemContextMenu}"/>
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsArchived}" Value="True">
+                                    <DataTrigger Binding="{Binding IsValid}" Value="False">
                                         <Setter Property="Foreground" Value="Gray"/>
                                     </DataTrigger>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding IsValid}" Value="True"/>
+                                            <Condition Binding="{Binding IsExist}" Value="False"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Foreground" Value="OrangeRed"/>
+                                    </MultiDataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </ListView.ItemContainerStyle>
@@ -215,9 +250,16 @@
                                 <EventSetter Event="PreviewMouseRightButtonDown" Handler="ManagedIconItem_PreviewMouseRightButtonDown"/>
                                 <Setter Property="ContextMenu" Value="{StaticResource ManagedItemContextMenu}"/>
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsArchived}" Value="True">
+                                    <DataTrigger Binding="{Binding IsValid}" Value="False">
                                         <Setter Property="Foreground" Value="Gray"/>
                                     </DataTrigger>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding IsValid}" Value="True"/>
+                                            <Condition Binding="{Binding IsExist}" Value="False"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Foreground" Value="OrangeRed"/>
+                                    </MultiDataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </ListBox.ItemContainerStyle>
@@ -338,13 +380,16 @@
                                 <CheckBox x:Name="ActorColumnCheckBox" Content="배우" IsChecked="False" Margin="0,2" Click="ColumnToggle_Click" Tag="Actor"/>
                                 <CheckBox x:Name="MemoColumnCheckBox" Content="메모" IsChecked="False" Margin="0,2" Click="ColumnToggle_Click" Tag="Memo"/>
                                 <CheckBox x:Name="FolderColumnCheckBox" Content="폴더명" IsChecked="False" Margin="0,2" Click="ColumnToggle_Click" Tag="Folder"/>
+                                <CheckBox x:Name="CodeColumnCheckBox" Content="코드" IsChecked="False" Margin="0,2" Click="ColumnToggle_Click" Tag="Code"/>
+                                <CheckBox x:Name="SeriesColumnCheckBox" Content="시리즈" IsChecked="False" Margin="0,2" Click="ColumnToggle_Click" Tag="Series"/>
+                                <CheckBox x:Name="ReleaseDateColumnCheckBox" Content="출시일" IsChecked="False" Margin="0,2" Click="ColumnToggle_Click" Tag="ReleaseDate"/>
                             </StackPanel>
                         </Border>
                     </Popup>
                 </Grid>
 
                 <!-- 선택된 항목의 상세 정보 -->
-                <Border Grid.Row="5" Grid.ColumnSpan="2" BorderBrush="LightGray" BorderThickness="1" Padding="10" Margin="0,10,0,0" MinHeight="90">
+                <Border Grid.Row="7" Grid.ColumnSpan="2" BorderBrush="LightGray" BorderThickness="1" Padding="10" Margin="0,10,0,0" MinHeight="90">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>

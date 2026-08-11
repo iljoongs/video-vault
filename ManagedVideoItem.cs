@@ -17,7 +17,10 @@ public class ManagedVideoItem : INotifyPropertyChanged
     private string _memo = string.Empty;
     private string _code = string.Empty;
     private string _releaseDate = string.Empty;
-    private bool _isArchived;
+    private string _series = string.Empty;
+    private bool _isValid = true;
+    private bool _isExist = true;
+    private bool _isPlaceholder;
 
     public string FileName
     {
@@ -124,19 +127,79 @@ public class ManagedVideoItem : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// 관리 리스트 화면에서 "제거"되었거나 파일을 더 이상 찾을 수 없어 보관 상태로 전환된 항목인지 여부.
-    /// true여도 데이터(재생횟수/태그/배우/메모/썸네일)는 그대로 보존되며, 화면(리스트/필터/정렬)에는 노출되지 않는다.
-    /// 나중에 같은 파일명이 다시 관리 리스트에 추가되면 이 데이터를 재사용할지 사용자에게 물어본다.
+    /// 이 항목이 속한 시리즈(시리즈 마스터 목록의 이름 하나만 참조, 자유 입력 아님). 기본값은 빈 문자열이며
+    /// 속성 창의 콤보박스에서 선택한다 — 배우/태그와 달리 여러 개가 아니라 단일 선택이다(2026-08-08 추가).
     /// </summary>
-    public bool IsArchived
+    public string Series
     {
-        get => _isArchived;
+        get => _series;
         set
         {
-            if (_isArchived != value)
+            if (_series != value)
             {
-                _isArchived = value;
-                OnPropertyChanged(nameof(IsArchived));
+                _series = value;
+                OnPropertyChanged(nameof(Series));
+            }
+        }
+    }
+
+    /// <summary>
+    /// 이 항목이 관리 리스트에서 "유효한"(사용자가 계속 관리하길 원하는) 상태인지 여부(2026-08-06 추가,
+    /// 예전 `IsArchived`를 대체 — 의미가 반대이므로 값도 반대로 저장된다: 예전 `IsArchived = true` ↔ 지금
+    /// `IsValid = false`). false면 사용자가 "제거"했거나(또는 "파일 없이 추가"로 아직 실제 파일을 못 구한
+    /// 상태) — true여도 데이터(재생횟수/태그/배우/메모/썸네일)는 그대로 보존된다. 화면(리스트/필터/정렬)에는
+    /// 기본적으로 노출되지 않으며 "제거된 항목도 표시" 체크박스로 볼 수 있다. <see cref="IsExist"/>(파일이
+    /// 실제로 존재하는지)와는 독립적인 축이다 — 파일이 없어졌다고 자동으로 `IsValid`가 바뀌지는 않는다
+    /// ([파일 존재 여부](#오류-처리) 참고).
+    /// </summary>
+    public bool IsValid
+    {
+        get => _isValid;
+        set
+        {
+            if (_isValid != value)
+            {
+                _isValid = value;
+                OnPropertyChanged(nameof(IsValid));
+            }
+        }
+    }
+
+    /// <summary>
+    /// `FullPath`가 가리키는 실제 파일이 디스크에 존재하는지 여부(2026-08-06 추가). 시작 시(그리고 향후
+    /// 재확인 시) 모든 항목에 대해 `File.Exists(FullPath)`로 다시 판단해 갱신된다 — "파일 없이 추가"된
+    /// 항목(<see cref="IsPlaceholder"/>)은 항상 false로 취급한다(실제 폴더가 없는 경로이므로). `IsValid`와
+    /// 독립적인 축이라, 파일이 일시적으로(외장 드라이브 분리 등) 없어져도 관리 리스트에서 사라지지 않고
+    /// 계속 활성 상태로 남아있으며, 화면에서 다르게(예: 경고 색) 표시하는 용도로만 쓰인다.
+    /// </summary>
+    public bool IsExist
+    {
+        get => _isExist;
+        set
+        {
+            if (_isExist != value)
+            {
+                _isExist = value;
+                OnPropertyChanged(nameof(IsExist));
+            }
+        }
+    }
+
+    /// <summary>
+    /// 실제 동영상 파일 없이(아직 구하지 못한 작품 등을 미리 기록해두기 위해) 수동으로 추가된 항목인지
+    /// 여부(2026-08-06 추가). true면 시작 시 파일 존재 여부 확인(`ReconcileMissingFiles`)에서 제외되어
+    /// 파일이 없다는 이유로 자동 제거되지 않으며, 속성 창에서 실제 파일이 있어야 동작하는 기능(재생/파일
+    /// 이동·변경/썸네일)이 비활성화된다 — [관리 리스트] "파일 없이 추가" 참고.
+    /// </summary>
+    public bool IsPlaceholder
+    {
+        get => _isPlaceholder;
+        set
+        {
+            if (_isPlaceholder != value)
+            {
+                _isPlaceholder = value;
+                OnPropertyChanged(nameof(IsPlaceholder));
             }
         }
     }

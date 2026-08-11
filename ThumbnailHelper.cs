@@ -15,6 +15,9 @@ public static class ThumbnailHelper
 
     public readonly record struct Result(string ThumbnailPath, string OriginalPath);
 
+    /// <summary>"파일 없이 추가"된 항목(실제 폴더가 없음)의 썸네일을 저장할 고정 폴더.</summary>
+    public const string PlaceholderThumbnailDir = @"E:\happy\thumbnail";
+
     /// <summary>
     /// <paramref name="sourceImagePath"/> 이미지를
     /// (1) 원본 그대로 <paramref name="videoFullPath"/>와 같은 폴더에 "{동영상 파일명}.original{확장자}"로 복사하고,
@@ -28,6 +31,22 @@ public static class ThumbnailHelper
             ?? throw new InvalidOperationException("동영상 파일의 폴더 경로를 확인할 수 없습니다.");
         var videoNameNoExt = Path.GetFileNameWithoutExtension(videoFullPath);
 
+        return CreateThumbnailInDirectory(sourceImagePath, videoDir, videoNameNoExt);
+    }
+
+    /// <summary>
+    /// "파일 없이 추가"된 항목은 실제 폴더가 없으므로(<see cref="ManagedVideoItem.FullPath"/>가 파일명뿐이거나
+    /// 비어있음), 동영상과 같은 폴더 대신 <see cref="PlaceholderThumbnailDir"/>에 저장한다(2026-08-06 추가).
+    /// </summary>
+    public static Result CreatePlaceholderThumbnail(string sourceImagePath, string itemFileName)
+    {
+        Directory.CreateDirectory(PlaceholderThumbnailDir);
+        var nameNoExt = Path.GetFileNameWithoutExtension(itemFileName);
+        return CreateThumbnailInDirectory(sourceImagePath, PlaceholderThumbnailDir, nameNoExt);
+    }
+
+    private static Result CreateThumbnailInDirectory(string sourceImagePath, string videoDir, string videoNameNoExt)
+    {
         var sourceExtension = Path.GetExtension(sourceImagePath);
         if (string.IsNullOrEmpty(sourceExtension))
         {

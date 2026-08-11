@@ -7,7 +7,9 @@
         mc:Ignorable="d"
         Title="속성" Height="1200" Width="500"
         WindowStartupLocation="CenterOwner"
-        Closing="Window_Closing">
+        Closing="Window_Closing"
+        Deactivated="Window_Deactivated"
+        PreviewKeyDown="Window_PreviewKeyDown">
     <Window.Resources>
         <local:ThumbnailPathConverter x:Key="ThumbnailPathConverter"/>
     </Window.Resources>
@@ -18,7 +20,7 @@
         </Grid.RowDefinitions>
 
         <!-- 내용 영역: 배우 썸네일 등으로 세로 길이가 늘어나도 스크롤되며, 하단 버튼 줄은 항상 보인다 -->
-        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer x:Name="ContentScrollViewer" Grid.Row="0" VerticalScrollBarVisibility="Auto">
             <Grid Margin="0,0,10,0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/> <!-- 0: 파일명 -->
@@ -27,12 +29,13 @@
                     <RowDefinition Height="Auto"/> <!-- 3: 전체 경로 -->
                     <RowDefinition Height="Auto"/> <!-- 4: 재생횟수 -->
                     <RowDefinition Height="Auto"/> <!-- 5: 배우 -->
-                    <RowDefinition Height="Auto"/> <!-- 6: 메모 -->
-                    <RowDefinition Height="Auto"/> <!-- 7: 태그 선택 헤더 -->
-                    <RowDefinition Height="150"/>  <!-- 8: 태그 목록 -->
-                    <RowDefinition Height="Auto"/> <!-- 9: 썸네일 추가/삭제 버튼 -->
-                    <RowDefinition Height="Auto"/> <!-- 10: 썸네일 뷰어 -->
-                    <RowDefinition Height="Auto"/> <!-- 11: 썸네일 경로 -->
+                    <RowDefinition Height="Auto"/> <!-- 6: 시리즈 (2026-08-08 추가) -->
+                    <RowDefinition Height="Auto"/> <!-- 7: 메모 -->
+                    <RowDefinition Height="Auto"/> <!-- 8: 태그 선택 헤더 -->
+                    <RowDefinition Height="210"/>  <!-- 9: 태그 목록 (2026-08-08 2줄 확장) -->
+                    <RowDefinition Height="Auto"/> <!-- 10: 썸네일 추가/삭제 버튼 -->
+                    <RowDefinition Height="Auto"/> <!-- 11: 썸네일 뷰어 -->
+                    <RowDefinition Height="Auto"/> <!-- 12: 썸네일 경로 -->
                 </Grid.RowDefinitions>
 
                 <!-- 파일명: 이름/확장자를 분리한 두 개의 수정 가능한 텍스트 상자(같은 줄). 포커스를 잃으면(내용이 바뀐 경우) 즉시 실제 파일명에 반영 -->
@@ -74,9 +77,9 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Text="전체 경로:" VerticalAlignment="Center"/>
                         <StackPanel Grid.Column="2" Orientation="Horizontal">
-                            <Button Content="파일 이동" Padding="8,3" Margin="0,0,5,0" Click="MoveByCodeButton_Click"/>
-                            <Button Content="파일 변경" Padding="8,3" Margin="0,0,5,0" Click="ChangeFileButton_Click"/>
-                            <Button Content="경로 수정" Padding="8,3" Click="MoveToFolderButton_Click"/>
+                            <Button x:Name="MoveByCodeButton" Content="파일 이동" Padding="8,3" Margin="0,0,5,0" Click="MoveByCodeButton_Click"/>
+                            <Button x:Name="ChangeFileButton" Content="파일 변경" Padding="8,3" Margin="0,0,5,0" Click="ChangeFileButton_Click"/>
+                            <Button x:Name="MoveToFolderButton" Content="경로 수정" Padding="8,3" Click="MoveToFolderButton_Click"/>
                         </StackPanel>
                     </Grid>
                     <TextBox x:Name="FullPathText" IsReadOnly="True" TextWrapping="Wrap"/>
@@ -93,7 +96,7 @@
                     <TextBlock Grid.Column="0" Text="재생횟수:" VerticalAlignment="Center" Margin="0,0,5,0"/>
                     <TextBox x:Name="PlayCountBox" Grid.Column="1" Width="80" Margin="0,0,5,0" IsReadOnly="True"/>
                     <Button Grid.Column="2" Content="초기화" Padding="8,3" Margin="0,0,5,0" Click="PlayCountReset_Click"/>
-                    <Button Grid.Column="3" Content="재생" Padding="8,3" Click="PlayButton_Click"/>
+                    <Button x:Name="PlayButton" Grid.Column="3" Content="재생" Padding="8,3" Click="PlayButton_Click"/>
                 </Grid>
 
                 <StackPanel Grid.Row="5" Margin="0,0,0,8">
@@ -112,7 +115,8 @@
                             <DataTemplate>
                                 <Border Background="#E0E0E0" CornerRadius="8" Padding="6,2" Margin="0,0,4,4">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{Binding}" FontSize="11" Margin="0,0,4,0"/>
+                                        <TextBlock Text="{Binding}" FontSize="11" Margin="0,0,4,0" Cursor="Hand"
+                                                   ToolTip="클릭하여 배우 관리 열기" MouseLeftButtonUp="ActorChipName_MouseLeftButtonUp"/>
                                         <TextBlock Text="✕" FontSize="11" Cursor="Hand" ToolTip="제거"
                                                    Tag="{Binding}" MouseLeftButtonUp="RemoveActorChip_Click"/>
                                     </StackPanel>
@@ -130,7 +134,8 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Width="80" Height="80" Margin="0,0,6,6" Background="#F0F0F0" BorderBrush="Gray" BorderThickness="1" ToolTip="{Binding Name}">
+                                <Border Width="80" Height="80" Margin="0,0,6,6" Background="#F0F0F0" BorderBrush="Gray" BorderThickness="1"
+                                        Cursor="Hand" ToolTip="{Binding Name}" MouseLeftButtonUp="ActorThumbnail_MouseLeftButtonUp">
                                     <Grid>
                                         <Image Source="{Binding ThumbnailPath, Converter={StaticResource ThumbnailPathConverter}}" Stretch="UniformToFill">
                                             <Image.Style>
@@ -163,14 +168,20 @@
                     </ItemsControl>
                 </StackPanel>
 
-                <StackPanel Grid.Row="6" Orientation="Horizontal" Margin="0,0,0,10">
+                <!-- 시리즈: 마스터 목록에서 단일 선택하는 콤보박스 (태그/배우와 달리 여러 개가 아니라 하나만 선택) -->
+                <StackPanel Grid.Row="6" Orientation="Horizontal" Margin="0,0,0,8">
+                    <TextBlock Text="시리즈:" Width="45" VerticalAlignment="Center"/>
+                    <ComboBox x:Name="SeriesComboBox" Width="220"/>
+                </StackPanel>
+
+                <StackPanel Grid.Row="7" Orientation="Horizontal" Margin="0,0,0,10">
                     <TextBlock Text="메모:" Width="45" VerticalAlignment="Top" Margin="0,4,0,0"/>
                     <TextBox x:Name="MemoBox" Width="320" Height="64" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
                 </StackPanel>
 
-                <TextBlock Grid.Row="7" Text="태그 선택" FontWeight="Bold" Margin="0,0,0,5"/>
+                <TextBlock Grid.Row="8" Text="태그 선택" FontWeight="Bold" Margin="0,0,0,5"/>
 
-                <Grid Grid.Row="8">
+                <Grid Grid.Row="9">
                     <TextBlock x:Name="NoTagsHint"
                                Text="사용 가능한 태그가 없습니다.&#10;'태그 관리'에서 먼저 태그를 추가하세요."
                                Foreground="Gray" TextAlignment="Center" TextWrapping="Wrap"
@@ -193,20 +204,20 @@
                 </Grid>
 
                 <!-- 품번(왼쪽 정렬) + 썸네일 추가/삭제 버튼(오른쪽), 같은 줄 -->
-                <Grid Grid.Row="9" Margin="0,10,0,5">
+                <Grid Grid.Row="10" Margin="0,10,0,5">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <TextBlock x:Name="ProductCodeText" Grid.Column="0" VerticalAlignment="Center" FontWeight="Bold"/>
                     <StackPanel Grid.Column="1" Orientation="Horizontal">
-                        <Button Content="썸네일 추가" Padding="8,3" Margin="0,0,5,0" Click="AddThumbnailButton_Click"/>
-                        <Button Content="썸네일 삭제" Padding="8,3" Click="DeleteThumbnailButton_Click"/>
+                        <Button x:Name="AddThumbnailButton" Content="썸네일 추가" Padding="8,3" Margin="0,0,5,0" Click="AddThumbnailButton_Click"/>
+                        <Button x:Name="DeleteThumbnailButton" Content="썸네일 삭제" Padding="8,3" Click="DeleteThumbnailButton_Click"/>
                     </StackPanel>
                 </Grid>
 
                 <!-- 썸네일 뷰어: 가운데 정렬, 클릭하면 원본 이미지 보기, 드래그 앤 드롭으로 썸네일 지정 -->
-                <Border Grid.Row="10" Width="320" Height="240" HorizontalAlignment="Center" Margin="0,0,0,5" Cursor="Hand"
+                <Border Grid.Row="11" Width="320" Height="240" HorizontalAlignment="Center" Margin="0,0,0,5" Cursor="Hand"
                         ToolTip="클릭: 원본 이미지 보기 / 드래그 앤 드롭: 썸네일 지정"
                         Background="#F0F0F0" BorderBrush="Gray" BorderThickness="1"
                         AllowDrop="True" Drop="ThumbnailViewer_Drop" DragOver="ThumbnailViewer_DragOver"
@@ -218,7 +229,7 @@
                 </Border>
 
                 <!-- 썸네일 위치 정보: 썸네일 하단에 표시 -->
-                <TextBlock x:Name="ThumbnailPathText" Grid.Row="11" HorizontalAlignment="Center" Foreground="Gray" FontSize="11"
+                <TextBlock x:Name="ThumbnailPathText" Grid.Row="12" HorizontalAlignment="Center" Foreground="Gray" FontSize="11"
                            TextTrimming="CharacterEllipsis" Margin="0,0,0,10"/>
             </Grid>
         </ScrollViewer>
@@ -230,10 +241,10 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <Button Grid.Column="0" Content="완전 삭제" Padding="8,3" Foreground="DarkRed" Click="DeleteButton_Click"/>
+            <Button x:Name="DeleteButton" Grid.Column="0" Content="완전 삭제" Padding="8,3" Foreground="DarkRed" Click="DeleteButton_Click"/>
             <StackPanel Grid.Column="2" Orientation="Horizontal">
                 <Button Content="확인" Width="80" Margin="0,0,5,0" Click="Ok_Click"/>
-                <Button Content="취소" Width="80" IsCancel="True"/>
+                <Button Content="취소" Width="80" Click="Cancel_Click"/>
             </StackPanel>
         </Grid>
     </Grid>

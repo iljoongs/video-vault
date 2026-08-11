@@ -1,0 +1,375 @@
+using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
+using System.IO;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Input;
+
+namespace VideoVault;
+
+/// <summary>
+/// 시리즈 마스터 목록을 추가/삭제하고, 시리즈별 품번(Credits)을 관리하는 창. 배우 관리 창의 Credits 패널과
+/// 같은 패턴(관리 리스트 대조로 색 구분, 클릭 시 속성 창, 우클릭 시 Credits에서 제거)을 공유한다. 이름 변경/삭제
+/// 시 관리 리스트 항목의 <see cref="ManagedVideoItem.Series"/>에도 반영되어 참조 무결성을 유지한다.
+/// </summary>
+public partial class SeriesManagerWindow : Window
+{
+    private readonly ObservableCollection<SeriesItem> _masterSeries;
+    private readonly IEnumerable<string> _masterTags;
+    private readonly ObservableCollection<ActorItem> _masterActors;
+    private readonly ObservableCollection<ManagedVideoItem> _managedItems;
+    private readonly ICollectionView _seriesView;
+
+    public SeriesManagerWindow(ObservableCollection<SeriesItem> masterSeries, IEnumerable<string> masterTags, ObservableCollection<ActorItem> masterActors, ObservableCollection<ManagedVideoItem> managedItems)
+    {
+        InitializeComponent();
+        WindowSnapHelper.Attach(this);
+        _masterSeries = masterSeries;
+        _masterTags = masterTags;
+        _masterActors = masterActors;
+        _managedItems = managedItems;
+
+        _seriesView = CollectionViewSource.GetDefaultView(_masterSeries);
+        _seriesView.SortDescriptions.Add(new SortDescription(nameof(SeriesItem.Name), ListSortDirection.Ascending));
+        SeriesListBox.ItemsSource = _seriesView;
+
+        RefreshCreditsPanel();
+
+        // "# 창" 규칙(모든 창은 데이터가 바뀌면 동시에 갱신된다): 이 창을 열어둔 채로 다른 창(속성 창 등)에서
+        // 관리 리스트 항목의 Series가 바뀌면(예: 속성 창에서 시리즈 콤보박스 변경) Credits 패널도 즉시 따라가도록
+        // 한다(2026-08-10 추가, 구현 완료) — 예전에는 이 창을 새로 열거나 시리즈를 다시 선택해야만 반영됐다.
+        // `MainWindow.ManagedItems_CollectionChanged`와 동일한 패턴으로 모든 항목의 PropertyChanged를 구독한다.
+        foreach (var item in _managedItems)
+        {
+            item.PropertyChanged += ManagedItem_PropertyChanged;
+        }
+
+        _managedItems.CollectionChanged += ManagedItems_CollectionChanged;
+        Closed += (_, _) =>
+        {
+            _managedItems.CollectionChanged -= ManagedItems_CollectionChanged;
+            foreach (var item in _managedItems)
+            {
+                item.PropertyChanged -= ManagedItem_PropertyChanged;
+            }
+
+            if (_subscribedCreditsSeries is not null)
+            {
+                _subscribedCreditsSeries.PropertyChanged -= SelectedSeriesPropertyChanged;
+            }
+        };
+    }
+
+    private void ManagedItems_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.NewItems is not null)
+        {
+            foreach (ManagedVideoItem item in e.NewItems)
+            {
+                item.PropertyChanged += ManagedItem_PropertyChanged;
+            }
+        }
+
+        if (e.OldItems is not null)
+        {
+            foreach (ManagedVideoItem item in e.OldItems)
+            {
+                item.PropertyChanged -= ManagedItem_PropertyChanged;
+            }
+        }
+    }
+
+    private void ManagedItem_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ManagedVideoItem.Series))
+        {
+            RefreshCreditsPanel();
+        }
+    }
+
+    /// <summary>
+    /// 지금 선택된 시리즈의 `Credits`가 구독 대상이다 — <see cref="RefreshCreditsPanel"/>이 선택이 바뀔 때마다
+    /// 이 필드를 갱신하며 옛 시리즈 구독을 해제하고 새 시리즈를 구독한다.
+    /// </summary>
+    private SeriesItem? _subscribedCreditsSeries;
+
+    /// <summary>
+    /// 선택된 시리즈의 `Credits`가 (이 창 밖에서, 예: `SeriesCreditSync.OnFileRenamed`) 직접 바뀌면 Credits
+    /// 패널도 즉시 따라가도록 한다(2026-08-10 추가, 구현 완료) — `ActorManagerWindow.SelectedActorPropertyChanged`와
+    /// 동일한 이유로 필요하다(`ManagedItem_PropertyChanged`만으로는, 예를 들어 속성 창에서 시리즈를 다른 값으로
+    /// 바꿔서 `SeriesCreditSync`가 옛 품번을 Credits에서 제거하는 경우를 놓친다).
+    /// </summary>
+    private void SelectedSeriesPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SeriesItem.Credits))
+        {
+            RefreshCreditsPanel();
+        }
+    }
+
+    private SeriesItem? SelectedSeries => SeriesListBox.SelectedItem as SeriesItem;
+
+    private class CreditChip
+    {
+        public string Code { get; set; } = string.Empty;
+
+        /// <summary>이 품번의 파일이 현재 관리 리스트(활성/제거됨 모두)에 실제로 있으면 true → 진한 색으로 표시.</summary>
+        public bool HasFile { get; set; }
+    }
+
+    private void SeriesListBox_SelectionChanged(object sender, SelectionChangedEventArgs e) => RefreshCreditsPanel();
+
+    private void AddSeries_Click(object sender, RoutedEventArgs e)
+    {
+        var name = NormalizeName(NewSeriesBox.Text);
+        if (name is null)
+        {
+            MessageBox.Show("시리즈 이름을 입력하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (_masterSeries.Any(s => string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase)))
+        {
+            MessageBox.Show("이미 존재하는 시리즈입니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var newSeries = new SeriesItem { Name = name };
+        _masterSeries.Add(newSeries);
+        NewSeriesBox.Clear();
+
+        SeriesListBox.SelectedItem = newSeries;
+        SeriesListBox.ScrollIntoView(newSeries);
+    }
+
+    private void DeleteSeries_Click(object sender, RoutedEventArgs e)
+    {
+        var series = SelectedSeries;
+        if (series is null)
+        {
+            MessageBox.Show("삭제할 시리즈를 선택하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var result = MessageBox.Show(
+            $"'{series.Name}' 시리즈를 삭제하시겠습니까?\n이 시리즈가 지정된 모든 항목에서도 함께 제거됩니다.",
+            "삭제 확인",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (result != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        _masterSeries.Remove(series);
+
+        foreach (var item in _managedItems)
+        {
+            if (string.Equals(item.Series, series.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                item.Series = string.Empty;
+            }
+        }
+
+        RefreshCreditsPanel();
+    }
+
+    /// <summary>
+    /// 선택된 시리즈의 Credits(품번 목록)를 관리 리스트와 대조해서 보여준다. 관리 리스트(활성/제거됨 모두)에
+    /// 같은 품번(파일명, 확장자 제외)의 파일이 실제로 있으면 진한 색, 없으면 연한 색으로 표시된다.
+    /// 표시하기 전에 관리 리스트를 먼저 찾아서 Credits를 최신 상태로 동기화한다(<see cref="SyncCreditsFromManagedItems"/>).
+    /// </summary>
+    private void RefreshCreditsPanel()
+    {
+        var series = SelectedSeries;
+
+        if (!ReferenceEquals(_subscribedCreditsSeries, series))
+        {
+            if (_subscribedCreditsSeries is not null)
+            {
+                _subscribedCreditsSeries.PropertyChanged -= SelectedSeriesPropertyChanged;
+            }
+
+            _subscribedCreditsSeries = series;
+
+            if (_subscribedCreditsSeries is not null)
+            {
+                _subscribedCreditsSeries.PropertyChanged += SelectedSeriesPropertyChanged;
+            }
+        }
+
+        if (series is null)
+        {
+            CreditsList.ItemsSource = null;
+            return;
+        }
+
+        SyncCreditsFromManagedItems(series);
+
+        var libraryCodes = _managedItems
+            .Select(m => Path.GetFileNameWithoutExtension(m.FileName))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        CreditsList.ItemsSource = series.Credits
+            .OrderBy(code => code, StringComparer.OrdinalIgnoreCase)
+            .Select(code => new CreditChip { Code = code, HasFile = libraryCodes.Contains(code) })
+            .ToList();
+    }
+
+    /// <summary>
+    /// 관리 리스트에서 이 시리즈가 Series로 지정된 항목들의 품번(파일명, 확장자 제외)을 찾아 Credits에 자동으로
+    /// 병합한다 — 관리 리스트에서 이미 이 시리즈를 지정해둔 파일이 있다면, 따로 "작품 추가"를 거치지 않아도
+    /// Credits 목록에 반영되도록 하기 위함이다. 이미 Credits에 있는 값은 건드리지 않는다.
+    /// </summary>
+    private void SyncCreditsFromManagedItems(SeriesItem series)
+    {
+        var codesFromLibrary = _managedItems
+            .Where(m => string.Equals(m.Series, series.Name, StringComparison.OrdinalIgnoreCase))
+            .Select(m => Path.GetFileNameWithoutExtension(m.FileName))
+            .Where(code => !string.IsNullOrEmpty(code))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        var missing = codesFromLibrary
+            .Where(code => !series.Credits.Any(c => string.Equals(c, code, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+
+        if (missing.Count > 0)
+        {
+            var updated = new List<string>(series.Credits);
+            updated.AddRange(missing);
+            series.SetCredits(updated);
+        }
+    }
+
+    /// <summary>
+    /// 새로 추가한 품번이 관리 리스트에 실제로 있는 파일이면, 그 항목의 Series에도 이 시리즈를 지정해서
+    /// (아직 다른 시리즈가 지정되어 있지 않은 경우에만) 최신 상태로 맞춘다. 배우와 달리 Series는 단일 값이므로
+    /// 이미 다른 시리즈가 지정된 항목은 조용히 건드리지 않는다(사용자가 고른 값을 임의로 덮어쓰지 않기 위함).
+    /// </summary>
+    private void UpdateManagedItemSeriesForCredit(SeriesItem series, string code)
+    {
+        var matches = _managedItems.Where(m =>
+            string.Equals(Path.GetFileNameWithoutExtension(m.FileName), code, StringComparison.OrdinalIgnoreCase));
+
+        foreach (var item in matches)
+        {
+            if (string.IsNullOrEmpty(item.Series))
+            {
+                item.Series = series.Name;
+            }
+        }
+    }
+
+    private void AddCredit_Click(object sender, RoutedEventArgs e)
+    {
+        var series = SelectedSeries;
+        if (series is null)
+        {
+            MessageBox.Show("작품을 추가할 시리즈를 먼저 선택하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dialog = new AddCreditWindow(_managedItems, code => AddCreditToSeries(series, code)) { Owner = this };
+        dialog.ShowDialog();
+    }
+
+    private void AddCreditToSeries(SeriesItem series, string code)
+    {
+        if (series.Credits.Any(c => string.Equals(c, code, StringComparison.OrdinalIgnoreCase)))
+        {
+            MessageBox.Show("이미 추가된 품번입니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var updated = new List<string>(series.Credits) { code };
+        series.SetCredits(updated);
+        UpdateManagedItemSeriesForCredit(series, code);
+        RefreshCreditsPanel();
+    }
+
+    /// <summary>품번(Credit) 칩을 클릭하면 관리 리스트에서 일치하는 항목의 속성 창을 연다. 일치하는 파일이 없으면 안내만 표시한다.</summary>
+    private void CreditChip_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: string code })
+        {
+            return;
+        }
+
+        var match = _managedItems.FirstOrDefault(m =>
+            string.Equals(Path.GetFileNameWithoutExtension(m.FileName), code, StringComparison.OrdinalIgnoreCase));
+
+        if (match is null)
+        {
+            MessageBox.Show("관리 리스트에 이 품번의 파일이 없습니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        // Owner는 MainWindow로 고정한다 — `this`(SeriesManagerWindow)로 하면, 나중에 이 창이 종류별 단일
+        // 인스턴스 규칙으로 다른 SeriesManagerWindow에 밀려 닫힐 때 WPF가 소유한 창(PropertiesWindow)까지
+        // 함께 닫아버려서 "모든 창은 독립적인 상태를 갖는다"는 규칙과 어긋난다.
+        var dialog = new PropertiesWindow(match, _masterTags, _masterActors, _masterSeries, _managedItems) { Owner = Application.Current.MainWindow };
+        dialog.Closed += (_, _) =>
+        {
+            if (dialog.PermanentlyDeleted)
+            {
+                _managedItems.Remove(dialog.CurrentItem);
+            }
+
+            RefreshCreditsPanel();
+        };
+        SingleInstanceWindow<PropertiesWindow>.Show(dialog);
+        e.Handled = true;
+    }
+
+    private void CreditChip_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: string code })
+        {
+            return;
+        }
+
+        var series = SelectedSeries;
+        if (series is null)
+        {
+            return;
+        }
+
+        var result = MessageBox.Show(
+            $"'{code}' 항목을 Credits에서 제거하시겠습니까?\n실제 파일에 이 시리즈가 지정되어 있다면 그 지정도 함께 해제됩니다.",
+            "삭제 확인",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        // 이 품번과 일치하는 실제 파일이 아직 이 시리즈를 가리키고 있으면, Credits에서만 지워도 RefreshCreditsPanel의
+        // SyncCreditsFromManagedItems가 곧바로 다시 채워넣어 "삭제가 안 되는 것처럼" 보인다(실제 버그였음) —
+        // 파일 쪽 Series도 함께 비워서 재동기화로 되살아나지 않게 한다.
+        foreach (var item in _managedItems.Where(m =>
+            string.Equals(Path.GetFileNameWithoutExtension(m.FileName), code, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(m.Series, series.Name, StringComparison.OrdinalIgnoreCase)))
+        {
+            item.Series = string.Empty;
+        }
+
+        var updated = series.Credits.Where(c => !string.Equals(c, code, StringComparison.OrdinalIgnoreCase)).ToList();
+        series.SetCredits(updated);
+        RefreshCreditsPanel();
+
+        e.Handled = true;
+    }
+
+    private static string? NormalizeName(string? raw)
+    {
+        var trimmed = raw?.Trim();
+        return string.IsNullOrEmpty(trimmed) ? null : trimmed;
+    }
+
+    private void Close_Click(object sender, RoutedEventArgs e) => Close();
+}

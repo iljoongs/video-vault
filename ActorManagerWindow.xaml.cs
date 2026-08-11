@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.IO;
 using System.Windows;
@@ -16,14 +17,17 @@ namespace VideoVault;
 public partial class ActorManagerWindow : Window
 {
     private readonly ObservableCollection<ActorItem> _masterActors;
+    private readonly ObservableCollection<SeriesItem> _masterSeries;
     private readonly ObservableCollection<ManagedVideoItem> _managedItems;
     private readonly IEnumerable<string> _masterTags;
     private readonly ICollectionView _actorsView;
 
-    public ActorManagerWindow(ObservableCollection<ActorItem> masterActors, ObservableCollection<ManagedVideoItem> managedItems, IEnumerable<string> masterTags)
+    public ActorManagerWindow(ObservableCollection<ActorItem> masterActors, ObservableCollection<SeriesItem> masterSeries, ObservableCollection<ManagedVideoItem> managedItems, IEnumerable<string> masterTags, ActorItem? initialSelection = null)
     {
         InitializeComponent();
+        WindowSnapHelper.Attach(this);
         _masterActors = masterActors;
+        _masterSeries = masterSeries;
         _managedItems = managedItems;
         _masterTags = masterTags;
 
@@ -31,7 +35,89 @@ public partial class ActorManagerWindow : Window
         _actorsView.SortDescriptions.Add(new SortDescription(nameof(ActorItem.Name), ListSortDirection.Ascending));
         ActorsListBox.ItemsSource = _actorsView;
 
+        if (initialSelection is not null)
+        {
+            ActorsListBox.SelectedItem = initialSelection;
+            // 창이 처음 렌더링된 뒤(레이아웃이 준비된 뒤)에야 ScrollIntoView가 실제로 스크롤한다 (MainWindow_Loaded와 동일한 이유).
+            Loaded += (_, _) => ActorsListBox.ScrollIntoView(initialSelection);
+        }
+
         RefreshThumbnailPreview();
+
+        // "# 창" 규칙(모든 창은 데이터가 바뀌면 동시에 갱신된다): 이 창을 열어둔 채로 다른 창(속성 창 등)에서
+        // 관리 리스트 항목의 Actors가 바뀌면(예: 속성 창에서 배우 칩 추가/제거) Credits 패널도 즉시 따라가도록
+        // 한다(2026-08-10 추가, 구현 완료) — 예전에는 이 창을 새로 열거나 배우를 다시 선택해야만 반영됐다.
+        // `MainWindow.ManagedItems_CollectionChanged`와 동일한 패턴으로 모든 항목의 PropertyChanged를 구독한다.
+        foreach (var item in _managedItems)
+        {
+            item.PropertyChanged += ManagedItem_PropertyChanged;
+        }
+
+        _managedItems.CollectionChanged += ManagedItems_CollectionChanged;
+        Closed += (_, _) =>
+        {
+            _managedItems.CollectionChanged -= ManagedItems_CollectionChanged;
+            foreach (var item in _managedItems)
+            {
+                item.PropertyChanged -= ManagedItem_PropertyChanged;
+            }
+
+            if (_subscribedCreditsActor is not null)
+            {
+                _subscribedCreditsActor.PropertyChanged -= SelectedActorPropertyChanged;
+            }
+        };
+    }
+
+    private void ManagedItems_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.NewItems is not null)
+        {
+            foreach (ManagedVideoItem item in e.NewItems)
+            {
+                item.PropertyChanged += ManagedItem_PropertyChanged;
+            }
+        }
+
+        if (e.OldItems is not null)
+        {
+            foreach (ManagedVideoItem item in e.OldItems)
+            {
+                item.PropertyChanged -= ManagedItem_PropertyChanged;
+            }
+        }
+    }
+
+    private void ManagedItem_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ManagedVideoItem.Actors))
+        {
+            RefreshCreditsPanel(SelectedActor);
+        }
+    }
+
+    /// <summary>
+    /// 지금 선택된 배우의 `Credits`가 구독 대상이다 — <see cref="RefreshThumbnailPreview"/>가 선택이 바뀔 때마다
+    /// 이 필드를 갱신하며 옛 배우 구독을 해제하고 새 배우를 구독한다.
+    /// </summary>
+    private ActorItem? _subscribedCreditsActor;
+
+    /// <summary>
+    /// 선택된 배우의 `Credits`가 (이 창 밖에서, 예: `ActorCreditSync.OnActorRemovedFromItem`) 직접 바뀌면
+    /// Credits 패널도 즉시 따라가도록 한다(2026-08-10 추가, 구현 완료). <see cref="ManagedItem_PropertyChanged"/>
+    /// (Actors 추가 시 새 품번을 병합)만으로는 부족한 경우가 있었다 — 예: 속성 창에서 배우 칩을 제거하고
+    /// "확인"을 누르면 `TryCommitFormFields`가 먼저 `_item.SetActors(...)`로 `Actors`를 갱신한 뒤(이 시점에
+    /// `ManagedItem_PropertyChanged`가 한 번 실행되지만, 아직 `actor.Credits`는 안 바뀐 상태라 옛 품번이
+    /// 그대로 남아있는 걸로 새로 고쳐진다) 그 다음에야 `ActorCreditSync.OnActorRemovedFromItem`이 실제로
+    /// `actor.Credits`에서 그 품번을 제거하는데, 이 두 번째 변경을 구독하는 곳이 없어 Credits 패널이 옛 품번을
+    /// 계속 보여주는(삭제가 반영 안 되는 것처럼 보이는) 버그가 있었다.
+    /// </summary>
+    private void SelectedActorPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ActorItem.Credits))
+        {
+            RefreshCreditsPanel(SelectedActor);
+        }
     }
 
     private ActorItem? SelectedActor => ActorsListBox.SelectedItem as ActorItem;
@@ -281,6 +367,22 @@ public partial class ActorManagerWindow : Window
     private void RefreshThumbnailPreview()
     {
         var actor = SelectedActor;
+
+        if (!ReferenceEquals(_subscribedCreditsActor, actor))
+        {
+            if (_subscribedCreditsActor is not null)
+            {
+                _subscribedCreditsActor.PropertyChanged -= SelectedActorPropertyChanged;
+            }
+
+            _subscribedCreditsActor = actor;
+
+            if (_subscribedCreditsActor is not null)
+            {
+                _subscribedCreditsActor.PropertyChanged += SelectedActorPropertyChanged;
+            }
+        }
+
         ThumbnailPathText.Text = actor?.ThumbnailPath ?? "지정된 썸네일 없음";
 
         if (actor is not null && actor.HasThumbnail)
@@ -319,6 +421,7 @@ public partial class ActorManagerWindow : Window
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         CreditsList.ItemsSource = actor.Credits
+            .OrderBy(code => code, StringComparer.OrdinalIgnoreCase)
             .Select(code => new CreditChip { Code = code, HasFile = libraryCodes.Contains(code) })
             .ToList();
     }
@@ -376,21 +479,21 @@ public partial class ActorManagerWindow : Window
             return;
         }
 
-        var dialog = new AddCreditWindow(_managedItems) { Owner = this };
-        if (dialog.ShowDialog() != true)
-        {
-            return;
-        }
+        var dialog = new AddCreditWindow(_managedItems, code => AddCreditToActor(actor, code)) { Owner = this };
+        dialog.ShowDialog();
+    }
 
-        if (actor.Credits.Any(c => string.Equals(c, dialog.ProductCode, StringComparison.OrdinalIgnoreCase)))
+    private void AddCreditToActor(ActorItem actor, string code)
+    {
+        if (actor.Credits.Any(c => string.Equals(c, code, StringComparison.OrdinalIgnoreCase)))
         {
             MessageBox.Show("이미 추가된 품번입니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        var updated = new List<string>(actor.Credits) { dialog.ProductCode };
+        var updated = new List<string>(actor.Credits) { code };
         actor.SetCredits(updated);
-        UpdateManagedItemActorsForCredit(actor, dialog.ProductCode);
+        UpdateManagedItemActorsForCredit(actor, code);
         RefreshCreditsPanel(actor);
     }
 
@@ -411,15 +514,22 @@ public partial class ActorManagerWindow : Window
             return;
         }
 
-        var dialog = new PropertiesWindow(match, _masterTags, _masterActors) { Owner = this };
-        dialog.ShowDialog();
-
-        if (dialog.PermanentlyDeleted)
+        // Owner는 MainWindow로 고정한다 — `this`(ActorManagerWindow)로 하면, 나중에 이 창이 종류별 단일
+        // 인스턴스 규칙으로 다른 ActorManagerWindow에 밀려 닫힐 때 WPF가 소유한 창(PropertiesWindow)까지
+        // 함께 닫아버려서 "모든 창은 독립적인 상태를 갖는다"는 규칙과 어긋난다.
+        var dialog = new PropertiesWindow(match, _masterTags, _masterActors, _masterSeries, _managedItems) { Owner = Application.Current.MainWindow };
+        dialog.Closed += (_, _) =>
         {
-            _managedItems.Remove(match);
-        }
+            // 관리 리스트 선택이 바뀌면 이 창이 다른 항목으로 전환될 수 있으므로(SwitchToItem), 완전 삭제
+            // 대상은 창을 처음 열 때의 match가 아니라 닫히는 시점에 실제로 보여주고 있던 CurrentItem이어야 한다.
+            if (dialog.PermanentlyDeleted)
+            {
+                _managedItems.Remove(dialog.CurrentItem);
+            }
 
-        RefreshCreditsPanel(SelectedActor);
+            RefreshCreditsPanel(SelectedActor);
+        };
+        SingleInstanceWindow<PropertiesWindow>.Show(dialog);
         e.Handled = true;
     }
 
@@ -437,7 +547,7 @@ public partial class ActorManagerWindow : Window
         }
 
         var result = MessageBox.Show(
-            $"'{code}' 항목을 Credits에서 제거하시겠습니까?",
+            $"'{code}' 항목을 Credits에서 제거하시겠습니까?\n실제 파일에 이 배우가 지정되어 있다면 그 지정도 함께 해제됩니다.",
             "삭제 확인",
             MessageBoxButton.YesNo,
             MessageBoxImage.Question);
@@ -445,6 +555,17 @@ public partial class ActorManagerWindow : Window
         if (result != MessageBoxResult.Yes)
         {
             return;
+        }
+
+        // 이 품번과 일치하는 실제 파일이 아직 이 배우를 Actors로 갖고 있으면, Credits에서만 지워도 RefreshCreditsPanel의
+        // SyncCreditsFromManagedItems가 곧바로 다시 채워넣어 "삭제가 안 되는 것처럼" 보인다(실제 버그였음) —
+        // 파일 쪽 Actors에서도 이 배우를 함께 제거해서 재동기화로 되살아나지 않게 한다.
+        foreach (var item in _managedItems.Where(m =>
+            string.Equals(Path.GetFileNameWithoutExtension(m.FileName), code, StringComparison.OrdinalIgnoreCase) &&
+            m.Actors.Any(a => string.Equals(a, actor.Name, StringComparison.OrdinalIgnoreCase))))
+        {
+            var updatedActors = item.Actors.Where(a => !string.Equals(a, actor.Name, StringComparison.OrdinalIgnoreCase)).ToList();
+            item.SetActors(updatedActors);
         }
 
         var updated = actor.Credits.Where(c => !string.Equals(c, code, StringComparison.OrdinalIgnoreCase)).ToList();

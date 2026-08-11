@@ -9,6 +9,8 @@ public class AppSettings
     public string? SortProperty { get; set; }
     public bool SortAscending { get; set; } = true;
     public string? NameFilter { get; set; }
+    public string? FolderFilter { get; set; }
+    public string? SeriesFilter { get; set; }
     public List<string> SelectedTags { get; set; } = new();
     public List<string> SelectedActors { get; set; } = new();
     public bool ShowRemovedItems { get; set; }
@@ -26,4 +28,16 @@ public class AppSettings
     /// 파일명이 아니라 경로로 매칭해, 같은 이름의 다른 파일과 혼동되지 않도록 한다. 다음 실행 시 이 경로의 항목을 찾아
     /// 선택하고 스크롤해서 보여준다. 찾지 못하면(파일이 없어졌거나 필터에 걸러짐) 조용히 무시한다.</summary>
     public string? SelectedItemPath { get; set; }
+
+    /// <summary>주요 창(폴더 목록/속성/배우 관리/태그 관리)이 마지막으로 열려 있던 화면 위치. 키는 창 클래스
+    /// 이름(예: "PropertiesWindow"), 값은 [Left, Top]. <see cref="WindowPositionMemory"/> 참고.</summary>
+    public Dictionary<string, double[]> WindowPositions { get; set; } = new();
+
+    /// <summary>메인 창의 마지막 크기/위치(2026-08-07 추가). 창을 닫을 때 저장하고 다음 실행 시 복원한다
+    /// (최대화 상태로 닫았으면 최대화 이전의 "정상" 크기/위치를 저장 — <see cref="Window.RestoreBounds"/>).
+    /// 값이 없거나(구버전 settings.json) 화면 밖으로 판정되면 XAML에 정의된 기본 크기/`CenterScreen`을 그대로 쓴다.</summary>
+    public double? MainWindowWidth { get; set; }
+    public double? MainWindowHeight { get; set; }
+    public double? MainWindowLeft { get; set; }
+    public double? MainWindowTop { get; set; }
 }

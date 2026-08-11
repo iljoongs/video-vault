@@ -19,7 +19,14 @@
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0" Text="품번:" Margin="0,0,0,5"/>
-        <TextBox x:Name="CodeBox" Grid.Row="1" Margin="0,0,0,10" TextChanged="CodeBox_TextChanged"/>
+        <Grid Grid.Row="1" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="CodeBox" Grid.Column="0" Margin="0,0,5,0" TextChanged="CodeBox_TextChanged" PreviewKeyDown="CodeBox_PreviewKeyDown"/>
+            <Button Grid.Column="1" Content="추가" Padding="10,3" Click="AddButton_Click"/>
+        </Grid>
 
         <!-- 입력한 품번으로 관리 리스트를 미리보기 식으로 검색해서 보여준다. 목록에 없는 값도 그대로 입력 가능하다. -->
         <Grid Grid.Row="2">
@@ -68,8 +75,7 @@
         </Grid>
 
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-            <Button Content="확인" Width="80" Margin="0,0,5,0" Click="Ok_Click"/>
-            <Button Content="취소" Width="80" IsCancel="True"/>
+            <Button Content="닫기" Width="80" IsCancel="True" Click="Close_Click"/>
         </StackPanel>
     </Grid>
 </Window>

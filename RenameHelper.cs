@@ -9,7 +9,20 @@ namespace VideoVault;
 /// </summary>
 public static class RenameHelper
 {
-    public static bool TryRenameManagedItem(Window owner, ManagedVideoItem item, IEnumerable<ActorItem> masterActors)
+    /// <summary>
+    /// 항목의 썸네일/원본 파일을 <paramref name="newDirectory"/>로 옮기고 파일명을 <paramref name="newNameNoExt"/>
+    /// 기준으로 다시 붙인다(2026-08-07 추가). rename/이동이 아니라, "제거된 데이터 재사용"으로 항목의 실제
+    /// 파일 위치가 바뀔 때 기존 썸네일(예: "파일 없이 추가"의 고정 폴더 `E:\happy\thumbnail`에 있던 것, 또는
+    /// 예전 파일 위치에 남아있던 것)을 새 동영상 파일과 같은 폴더로 따라오게 하기 위해 쓴다
+    /// (`ManagedListImporter.AddFiles`). 대상 파일이 없거나 이름 충돌 등으로 실패해도 무시한다(부가 정리).
+    /// </summary>
+    public static void MoveThumbnailsToFolder(ManagedVideoItem item, string newDirectory, string newNameNoExt)
+    {
+        RenameAssociatedFile(item, newDirectory, newNameNoExt, isThumbnail: true);
+        RenameAssociatedFile(item, newDirectory, newNameNoExt, isThumbnail: false);
+    }
+
+    public static bool TryRenameManagedItem(Window owner, ManagedVideoItem item, IEnumerable<ActorItem> masterActors, IEnumerable<SeriesItem> masterSeries)
     {
         var dialog = new RenameWindow(item.FileName) { Owner = owner };
         if (dialog.ShowDialog() != true)
@@ -17,14 +30,14 @@ public static class RenameHelper
             return false;
         }
 
-        return TryRenameManagedItemTo(item, dialog.NewFileName, masterActors);
+        return TryRenameManagedItemTo(item, dialog.NewFileName, masterActors, masterSeries);
     }
 
     /// <summary>
     /// 대화상자 없이 지정된 새 파일명(같은 폴더 내)으로 즉시 rename한다. 유효성 검사(파일명 문자/중복)를 포함한다.
     /// `PropertiesWindow`의 파일명 텍스트 상자처럼, 별도 대화상자 없이 바로 적용해야 하는 곳에서 사용한다.
     /// </summary>
-    public static bool TryRenameManagedItemTo(ManagedVideoItem item, string newFileName, IEnumerable<ActorItem> masterActors)
+    public static bool TryRenameManagedItemTo(ManagedVideoItem item, string newFileName, IEnumerable<ActorItem> masterActors, IEnumerable<SeriesItem> masterSeries)
     {
         if (string.IsNullOrWhiteSpace(newFileName) || newFileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
         {
@@ -62,8 +75,10 @@ public static class RenameHelper
             var newNameNoExt = Path.GetFileNameWithoutExtension(newFileName);
             RenameAssociatedFile(item, directory, newNameNoExt, isThumbnail: true);
             RenameAssociatedFile(item, directory, newNameNoExt, isThumbnail: false);
+            RenameAssociatedSubtitles(directory, Path.GetFileNameWithoutExtension(oldFileName), directory, newNameNoExt);
 
             ActorCreditSync.OnFileRenamed(item, oldFileName, masterActors);
+            SeriesCreditSync.OnFileRenamed(item, oldFileName, masterSeries);
 
             return true;
         }
@@ -78,7 +93,7 @@ public static class RenameHelper
     /// 관리 리스트 항목이 가리키는 실제 동영상 파일을 파일 대화상자로 고른 새 전체 경로로 이동한다
     /// (폴더/파일명 모두 변경 가능). 대상이 이미 존재하면 대화상자 자체의 덮어쓰기 확인을 거친다.
     /// </summary>
-    public static bool TryEditFullPath(Window owner, ManagedVideoItem item, IEnumerable<ActorItem> masterActors)
+    public static bool TryEditFullPath(Window owner, ManagedVideoItem item, IEnumerable<ActorItem> masterActors, IEnumerable<SeriesItem> masterSeries)
     {
         var dialog = new SaveFileDialog
         {
@@ -108,6 +123,7 @@ public static class RenameHelper
         }
 
         var oldFileName = item.FileName;
+        var oldDirectory = Path.GetDirectoryName(item.FullPath);
 
         try
         {
@@ -118,8 +134,13 @@ public static class RenameHelper
             var newNameNoExt = Path.GetFileNameWithoutExtension(newFullPath);
             RenameAssociatedFile(item, newDirectory, newNameNoExt, isThumbnail: true);
             RenameAssociatedFile(item, newDirectory, newNameNoExt, isThumbnail: false);
+            if (oldDirectory is not null)
+            {
+                RenameAssociatedSubtitles(oldDirectory, Path.GetFileNameWithoutExtension(oldFileName), newDirectory, newNameNoExt);
+            }
 
             ActorCreditSync.OnFileRenamed(item, oldFileName, masterActors);
+            SeriesCreditSync.OnFileRenamed(item, oldFileName, masterSeries);
 
             return true;
         }
@@ -165,6 +186,8 @@ public static class RenameHelper
             return false;
         }
 
+        var oldDirectory = Path.GetDirectoryName(item.FullPath);
+
         try
         {
             Directory.CreateDirectory(newDirectory);
@@ -174,6 +197,10 @@ public static class RenameHelper
             var newNameNoExt = Path.GetFileNameWithoutExtension(item.FileName);
             RenameAssociatedFile(item, newDirectory, newNameNoExt, isThumbnail: true);
             RenameAssociatedFile(item, newDirectory, newNameNoExt, isThumbnail: false);
+            if (oldDirectory is not null)
+            {
+                RenameAssociatedSubtitles(oldDirectory, newNameNoExt, newDirectory, newNameNoExt);
+            }
 
             return true;
         }
@@ -222,6 +249,70 @@ public static class RenameHelper
         catch
         {
             // 썸네일/원본 파일 이름 변경은 부가 기능이므로, 실패해도(대상 이름 충돌 등) 동영상 파일 이름 변경 자체는 유지한다.
+        }
+    }
+
+    private static readonly string[] SubtitleExtensions = { ".srt", ".smi", ".ass", ".ssa", ".vtt", ".sub" };
+
+    /// <summary>
+    /// 동영상과 같은 폴더에 있는 자막 파일을 동영상 rename/이동에 맞춰 함께 옮긴다(2026-08-05 추가). 파일명이
+    /// 동영상 이름과 정확히 같거나("movie.srt") 그 뒤에 언어 코드 등이 "."으로 이어지는 경우("movie.kor.srt")까지
+    /// 자막으로 인식하며, 그 나머지 부분(언어 코드 + 확장자)은 그대로 유지한 채 동영상 이름 부분만 바꾼다.
+    /// "movie2.srt"처럼 이름이 우연히 접두사만 겹치는 파일은 제외한다. 썸네일/원본 파일과 마찬가지로 부가
+    /// 정리이므로, 실패해도(대상 이름 충돌 등) 동영상 파일 rename/이동 자체는 되돌리지 않는다.
+    /// </summary>
+    private static void RenameAssociatedSubtitles(string oldDirectory, string oldNameNoExt, string newDirectory, string newNameNoExt)
+    {
+        if (!Directory.Exists(oldDirectory))
+        {
+            return;
+        }
+
+        IEnumerable<string> filesInFolder;
+        try
+        {
+            filesInFolder = Directory.EnumerateFiles(oldDirectory).ToList();
+        }
+        catch
+        {
+            return;
+        }
+
+        foreach (var oldPath in filesInFolder)
+        {
+            var extension = Path.GetExtension(oldPath);
+            if (!SubtitleExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var nameNoExt = Path.GetFileNameWithoutExtension(oldPath);
+            if (!nameNoExt.StartsWith(oldNameNoExt, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (nameNoExt.Length > oldNameNoExt.Length && nameNoExt[oldNameNoExt.Length] != '.')
+            {
+                continue;
+            }
+
+            var suffix = nameNoExt[oldNameNoExt.Length..];
+            var newPath = Path.Combine(newDirectory, $"{newNameNoExt}{suffix}{extension}");
+
+            if (string.Equals(oldPath, newPath, StringComparison.OrdinalIgnoreCase) || File.Exists(newPath))
+            {
+                continue;
+            }
+
+            try
+            {
+                File.Move(oldPath, newPath);
+            }
+            catch
+            {
+                // 자막 파일 이름 변경은 부가 기능이므로, 실패해도(대상 이름 충돌 등) 동영상 파일 이름 변경 자체는 유지한다.
+            }
         }
     }
 }

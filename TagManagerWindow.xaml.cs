@@ -18,6 +18,7 @@ public partial class TagManagerWindow : Window
     public TagManagerWindow(ObservableCollection<string> masterTags, IEnumerable<ManagedVideoItem> managedItems)
     {
         InitializeComponent();
+        WindowSnapHelper.Attach(this);
         _masterTags = masterTags;
         _managedItems = managedItems;
 
