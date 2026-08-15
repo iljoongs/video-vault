@@ -1,0 +1,39 @@
+# 태그 관리
+
+> [메인 지시서](../CLAUDE.md)의 하위 문서. 태그 마스터 목록(`tags.json`)과 `TagManagerWindow`를 다룬다. 관리 리스트 항목에 태그를 붙이는 UI(체크박스)는 [속성 관리](properties-management.md), 관리 리스트에서 태그로 필터링/컬럼 표시하는 UI는 [동영상 파일 관리](video-file-management.md) 참고.
+
+**관련 파일**: `TagRepository.cs`, `TagManagerWindow.xaml`/`.xaml.cs`
+
+## 태그 마스터 목록 관리 (`tags.json`)
+
+- **저장 위치**: 관리 리스트와 동일한 로컬 데이터 폴더에 별도 파일로 저장 (`%LOCALAPPDATA%\VideoVault\tags.json`)
+- **자동 로딩**: 프로그램 시작 시 자동으로 불러오며, 파일이 없으면 빈 태그 목록으로 시작
+- **자동 저장**: 태그 추가/수정/삭제 시 즉시(또는 debounce 후) `tags.json`에 자동 저장 (관리 리스트와 동일한 정책, 500ms — [공통 관리](common-management.md)의 설정 관리 참고)
+- **태그 관리 화면(`TagManagerWindow`)**: 태그 마스터 목록을 별도 창에서 관리
+  - **목록은 항상 오름차순으로 정렬되어 표시된다** — `CollectionViewSource.GetDefaultView(_masterTags)`에 `SortDescription(string.Empty, Ascending)`을 적용한 `ICollectionView`를 `TagsListBox.ItemsSource`로 사용한다(문자열 자체를 정렬 키로 쓰므로 `PropertyName`을 빈 문자열로 지정). 실제 저장 순서(`tags.json`의 배열 순서)는 바꾸지 않고 화면 표시만 정렬한다 — **구현 완료**.
+  - **추가**: 새 태그 이름 입력 후 목록에 추가. **추가된 태그를 목록에서 바로 선택하고 그 위치로 스크롤한다**(2026-08-02 추가, **구현 완료**) — 목록이 항상 정렬 상태라 새 태그가 끝이 아니라 임의 위치에 삽입될 수 있으므로, `TagsListBox.SelectedItem`/`ScrollIntoView`로 사용자가 방금 추가한 태그를 바로 눈으로 확인할 수 있게 한다.
+  - **수정(이름 변경)**: 태그 이름을 바꾸면, 이 태그를 사용 중인 관리 리스트의 모든 항목에도 변경된 이름이 반영되어야 한다 (참조 무결성 유지). 이름이 바뀌면 정렬 위치도 바뀌어야 하므로 변경 후 `_tagsView.Refresh()`를 호출한다(`ObservableCollection`의 인덱스 교체만으로는 `ICollectionView`가 자동으로 재정렬하지 않기 때문).
+  - **삭제**: 태그를 마스터 목록에서 삭제하면, 이 태그를 사용 중인 관리 리스트 항목들에서도 해당 태그가 제거되어야 한다
+- **태그 동일성 판정 규칙**: 앞뒤 공백을 제거하고 대소문자를 구분하지 않는다 (`" Action "`, `"action"`, `"ACTION"`은 모두 같은 태그로 취급되어 중복 추가가 거부된다). 현재 `TagManagerWindow`의 중복 검사가 이 규칙으로 이미 구현되어 있다.
+
+## 데이터 모델 (태그 마스터 목록, `tags.json`)
+
+태그 마스터 목록은 문자열 배열 형태로 저장한다.
+
+```json
+["코미디", "액션", "미시청", "즐겨찾기"]
+```
+
+관리 리스트 항목의 `Tags` 필드는 이 마스터 목록에 존재하는 값만 참조하도록 유지한다 (마스터 목록에 없는 태그가 항목에 들어가지 않도록 UI에서 강제).
+
+## 관리 리스트에서의 노출
+
+- **속성 창의 태그 체크박스**: [속성 관리](properties-management.md) 참고 — 자유 입력이 아니라 마스터 목록에서 체크박스로 선택하는 방식이며, 여러 개 동시 선택 가능.
+- **태그 필터/태그 컬럼**: [동영상 파일 관리](video-file-management.md) 참고 — 리스트 보기의 태그 컬럼은 개별 태그(chip) 형태로 표시되고, 필터 영역의 "태그 필터" 버튼으로 여러 태그를 선택해 필터링할 수 있다.
+
+## 이 영역의 컨벤션
+
+- tags는 항상 문자열 배열(태그 목록)로 취급하며, 단일 문자열(콤마 구분 등)로 저장하지 않는다.
+- 태그 마스터 목록(`tags.json`)과 관리 리스트(`library.json`)는 별도 파일/별도 Repository(`TagRepository`, `ManagedListRepository`)로 분리 관리한다.
+- 태그 마스터 목록에서 태그 이름 변경/삭제 시 관리 리스트의 `Tags` 필드와 항상 동기화되도록 한다 (마스터 목록에 없는 태그가 관리 리스트에 남아있지 않도록 함).
+- `ManagedVideoItem.Tags`는 setter가 `private`이라 `[JsonInclude]`가 반드시 필요하다 — [공통 관리](common-management.md)의 컨벤션 참고(실제로 이 필드가 이 문제로 저장은 되지만 불러오기에서 항상 빈 목록이 되는 버그가 있었다, 2026-07-31 수정).

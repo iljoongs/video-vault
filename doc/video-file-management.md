@@ -1,0 +1,200 @@
+# 동영상 파일 관리
+
+> [메인 지시서](../CLAUDE.md)의 하위 문서. 폴더 스캔부터 관리 리스트(핵심 목록)의 추가/제거/재생/이름변경/정렬/필터/보기 방식까지, "동영상 파일 자체"를 다루는 기능을 모은다. 항목별 상세 속성 편집은 [속성 관리](properties-management.md), 태그/배우/시리즈 마스터 목록 자체의 관리는 각각 [태그 관리](tag-management.md)/[배우 관리](actor-management.md)/[시리즈 관리](series-management.md), 썸네일 공통 인프라·설정 저장·창 관리 정책은 [공통 관리](common-management.md) 참고.
+
+**관련 파일**: `MainWindow.xaml`/`.xaml.cs`, `FolderListWindow.xaml`/`.xaml.cs`, `VideoFileItem.cs`, `ManagedListImporter.cs`, `ManagedVideoItem.cs`, `ManagedListRepository.cs`, `RenameWindow.xaml`/`.xaml.cs`, `RenameHelper.cs`, `IconSizeSettings.cs`, `IconCardFieldsSettings.cs`, `FileNameNaturalComparer.cs`
+
+## 주요 기능 (MainWindow)
+
+창 상단에는 표준 `Menu`(파일/편집/보기/재생/도구)가 있어 아래에서 설명하는 기능들에 메뉴로도 접근할 수 있다 — **구현 완료**. 메뉴 항목은 새 로직을 추가하지 않고 기존 버튼/이벤트 핸들러를 그대로 호출하며(예: "파일 > 폴더 목록"은 `OpenFolderList_Click` 재사용), "보기 > 리스트 보기/아이콘 보기"는 체크 가능한 `MenuItem`으로 툴바의 라디오 버튼과 상태를 항상 동기화한다. **메뉴바 오른쪽 끝에는 현재 창 크기를 "{가로} x {세로}" 형식으로 실시간 표시한다**(`WindowSizeText`, 2026-08-07 추가, **구현 완료**) — 메뉴를 감싸는 `DockPanel`에서 `WindowSizeText`를 `DockPanel.Dock="Right"`로 먼저 배치하고 `Menu`가 나머지 공간을 채우는 방식으로 오른쪽 정렬했다. `Window.SizeChanged`(`MainWindow_SizeChanged`)에서 `ActualWidth`/`ActualHeight`를 정수로 반올림해 표시하며, 창 크기 조절/최대화 등 어떤 방식으로 크기가 바뀌어도 즉시 갱신된다. **배경색은 메뉴바와 동일하게 맞춘다**(`{x:Static SystemColors.MenuBarBrush}`, 2026-08-09 추가) — `WindowSizeText`(`TextBlock`)는 내용 크기만큼만 배경이 칠해져 여백/세로 방향에 빈틈이 남으므로, `Border`(`DockPanel.Dock="Right"`, `Background`를 이 색으로 지정)로 감싸 그 안에 `TextBlock`을 넣는 방식으로 `DockPanel` 행 전체 높이를 틈 없이 채운다. `Menu` 자신도 같은 브러시를 `Background`로 명시해(기본 테마 브러시에 의존하지 않고) 정확히 같은 색이 되도록 했다.
+
+화면 본문은 **관리 리스트** 하나로 채워진다 (2026-08-02 변경 — 예전에는 **폴더 목록**과 좌우 분할로 나란히 표시했으나, 폴더 목록은 아래 서브 창으로 분리됨).
+
+### 폴더 목록 (현재 열린 폴더 스캔 결과)
+
+**메인 창이 아니라 별도의 서브 창(`FolderListWindow`)에서 동작한다** (2026-08-02 변경 — 예전에는 메인 창 왼쪽에 항상 표시되는 패널이었음). 관리 리스트 툴바의 "목록 추가" 버튼(태그 관리 버튼 왼쪽) 또는 "파일 > 폴더 목록" 메뉴로 모달 대화상자(`ShowDialog`)로 연다. `MainWindow`의 관리 리스트 컬렉션(`_managedItems`)을 생성자에서 그대로 참조로 넘겨받으므로, 이 창에서 파일을 추가/재사용하면 같은 `ObservableCollection` 인스턴스를 공유해 메인 창에도 즉시 반영된다(별도의 동기화 코드 없이 기존 `CollectionChanged` 구독이 그대로 동작).
+
+- **폴더 열기**: 사용자가 폴더를 선택하면 해당 폴더와 모든 하위 폴더를 재귀적으로 스캔하여 동영상 파일(mp4, mkv, avi, mov, wmv, flv, webm, m4v, mpg, mpeg)을 표시
+- 이 목록은 창이 열려있는 동안만 보여지는 **임시 목록**이며, 그 자체로는 저장되지 않는다 (관리 리스트와 별개).
+- **새로고침**: 현재 폴더를 다시 스캔
+- **초기화**: 현재 스캔 결과와 선택된 폴더 경로를 모두 지우고 "폴더를 선택하세요." 초기 상태로 되돌린다 (`ResetFolderList_Click`) — **구현 완료**.
+- **읽어온 파일 개수 표시**: 리스트 아래 오른쪽(파일 삭제/관리 리스트에 추가 버튼과 같은 줄, 버튼들 왼쪽)에 "파일 N개"로 스캔된 파일 개수를 보여준다(`FolderFileCountText`) — **구현 완료**. `LoadVideoFiles()`가 스캔을 마칠 때마다 갱신하고, "초기화" 시 비운다.
+- **관리 리스트에 추가**: 폴더 목록에서 선택한 파일을 관리 리스트로 추가. 같은 파일명의 **보관된**(전에 제거되었거나 파일을 찾지 못해 자동으로 빠진) 데이터가 있으면 재사용 여부를 묻는다 — 자세한 내용은 아래 "관리 리스트"의 "추가" 참고
+- **파일 삭제**: 선택한 파일(들)을 실제로 디스크에서 삭제한다(관리 데이터가 아니라 원본 파일 자체 삭제, 되돌릴 수 없음). 목록이 `SelectionMode="Extended"`라 여러 파일을 선택할 수 있으며, **여러 개 선택 시 전부 삭제 대상이 된다**(2026-08-02 수정, **구현 완료** — 예전에는 여러 개를 선택해도 그중 하나만 조용히 삭제되고 나머지는 안내 없이 그대로 남는 버그가 있었음). 개별 파일 삭제가 실패해도(권한 등) 나머지는 계속 삭제를 진행하고, 실패한 파일이 있으면 목록으로 안내한다.
+- **마지막 폴더 기억**: 창을 열 때 `MainWindow`가 마지막으로 기억해둔 폴더(`_currentFolder`, [공통 관리](common-management.md)의 설정 관리 참고)를 생성자 인자로 넘겨받아 자동으로 스캔해서 보여준다. 창을 닫으면(`LastFolder` 프로퍼티로) `MainWindow`가 그 값을 다시 받아 `_currentFolder`를 갱신하고 바뀐 경우에만 설정을 저장한다.
+- **닫기**: 창 하단의 "닫기" 버튼으로 서브 창을 닫고 메인 창으로 돌아간다. `MainWindow`는 창이 닫히면(`ShowDialog()` 반환 후) `_managedView.Refresh()`를 호출해, "재사용" 시 `IsValid`가 바뀐 항목이 필터에 바로 반영되도록 한다.
+- (향후) 폴더 스캔은 비동기(Task)로 수행해 UI 스레드를 막지 않는다 — [공통 관리](common-management.md)의 "성능" 참고
+
+### 관리 리스트 (사용자가 지속적으로 관리하는 목록)
+
+**툴바 레이아웃(2026-08-09 재배치, 2026-08-10 동기화 버튼 줄 분리, 구현 완료)**: 관리 리스트 영역 상단은 위에서부터 아래 순서로 다음 6개 줄로 구성된다 — "관리 리스트"라는 제목 텍스트 자체는 삭제되었다.
+1. 파일 갯수(`ManagedCountText`) + 자동 저장 위치(`LibraryPathText`)가 한 줄, 그 밑에 안내 문구("헤더를 우클릭하면...")가 2번째 줄.
+2. 보기 모드 라디오(리스트 보기/아이콘 보기) + "제거된 항목도 표시" 체크박스(2026-08-09 위치 변경 — 예전에는 필터 영역에 있었으나 이 줄로 옮겨짐, 동작은 동일) — "저장"/"열기"/"다른 이름으로 저장" 버튼은 삭제되었지만 기능은 그대로 유지된다(파일 메뉴 + Ctrl+S로 계속 사용 가능).
+3. "파일 없이 추가" / "목록 추가" / "재생" 버튼.
+4. "속성 (F1)" / "태그 관리" / "배우 관리" / "시리즈 관리" 버튼.
+5. "배우 동기화" / "시리즈 동기화" 버튼(2026-08-10 추가, "속성" 버튼 바로 밑 줄 — 처음에는 4번째 줄에서 "배우/시리즈 관리" 버튼 옆에 있었으나 별도 줄로 분리됨) → 상세: [배우 관리](actor-management.md)/[시리즈 관리](series-management.md).
+6. 필터 영역 — 아래 "검색(필터)" 항목 참고.
+
+"이름변경"/"제거" 버튼도 삭제되었지만(위 3번 줄에서 제외) F2/Del 단축키, 행 우클릭 메뉴, "편집" 메뉴로 기능은 동일하게 유지된다 — 새 로직 없이 기존 핸들러(`RenameManaged_Click`/`RemoveFromManagedList_Click`)를 그대로 참조하는 진입점만 없앤 것이다. 오른쪽 썸네일 뷰어는 이 6개 줄 전체 높이에 걸쳐(`Grid.RowSpan="6"`) 그대로 유지된다.
+
+- 폴더 목록과 별도의 영역/컨트롤로 표시되며, 내부적으로는 **JSON 파일로 영속 저장**된다.
+- **"목록 추가" 버튼**: 위 3번째 줄, "파일 없이 추가" 버튼 오른쪽에 있다(2026-08-02 추가, 2026-08-09 위치 변경) — **구현 완료**. 위 "폴더 목록" 서브 창(`FolderListWindow`)을 여는 진입점이며, "파일 > 폴더 목록" 메뉴와 동일한 `OpenFolderList_Click` 핸들러를 공유한다.
+- **관리되는 파일 개수 표시**: 위 1번째 줄 맨 왼쪽에 `(전체 N / 썸네일 N / 제거됨 N)` 형식으로 표시된다(`ManagedCountText`) — **구현 완료** (2026-08-09 변경 — 예전에는 "관리 리스트" 제목 밑에 있었으나 제목 자체가 삭제되면서 맨 위 줄로 올라옴). **전체**는 `_managedItems`에 들어있는 모든 항목 수(활성+제거됨 합산), **썸네일**은 그중 `HasThumbnail`이 true인 개수, **제거됨**은 `IsValid`가 false인 개수다. 항목이 추가/제거/완전삭제되거나(`ManagedItems_CollectionChanged`) 개별 항목의 속성이 바뀔 때마다(`ManagedItem_PropertyChanged`, 예: 썸네일 지정·삭제) `UpdateManagedCountDisplay()`로 다시 계산된다. **시작 시 로딩 중에는 이 재계산을 건너뛴다**(2026-08-02 최적화, **구현 완료**) — `LoadInitialData()`가 항목을 하나씩 `Add`할 때마다 매번 전체를 다시 스캔하면 로딩이 O(n²)가 되므로, 로딩 중(`_suppressAutoSave`)에는 건너뛰고 로딩이 끝난 뒤 한 번만 계산한다.
+- **추가**: 폴더 목록에서 선택한 파일을 관리 리스트에 추가. 같은 파일명의 **제거된 데이터**가 있으면 재사용 여부를 확인 대화상자로 물어본다 — 예를 선택하면 재생횟수/태그/배우/메모/썸네일은 그대로 유지한 채 경로(`FullPath`)·크기·수정일만 새로 스캔된 파일 것으로 갱신하고 다시 활성화한다. 아니요를 선택하면 완전히 새 항목으로 추가한다. → 아래 "제거(Remove) 메커니즘" 참고
+- **드래그 앤 드롭으로 추가** (2026-08-05 추가, **구현 완료**): 탐색기에서 동영상 파일을 관리 리스트 영역(리스트 보기/아이콘 보기 모두, `MainWindow.xaml`의 두 뷰를 감싸는 `Grid`에 `AllowDrop`)으로 직접 끌어다 놓으면 폴더 목록 창을 거치지 않고 바로 추가된다. **여러 파일을 한 번에 끌어다 놓을 수 있다**(`DataFormats.FileDrop`이 드롭된 모든 경로를 배열로 한 번에 넘겨주므로 별도 처리 없이 지원됨). 놓은 파일 중 동영상 확장자가 아닌 것은 조용히 걸러진다(전부 동영상이 아니면 안내 메시지). 재사용 확인 대화상자 등 추가 로직 자체는 위 "추가"와 완전히 동일한 코드(`ManagedListImporter.AddFiles`)를 공유한다 — 폴더 목록의 "관리 리스트에 추가"와 이 드래그 앤 드롭 둘 다 `ManagedListImporter`를 호출하는 얇은 진입점일 뿐이다.
+  - **이미 관리 중인 파일은 목록으로 한 번에 안내한다** (2026-08-05 추가, **구현 완료**): 여러 파일을 한 번에 추가할 때 그중 일부가 이미 활성 상태로 관리 리스트에 있으면(전에는 조용히 건너뛰기만 하고 아무 안내가 없었음), 건너뛴 파일명을 전부 모아뒀다가 추가 처리가 모두 끝난 뒤 **대화상자 하나에 목록으로** 보여준다(파일마다 따로 팝업을 띄우지 않음). 같은 파일명의 **제거된** 데이터에 대한 재사용 여부 확인(예/아니요)은 이 목록화 대상이 아니다 — 그건 항목별로 실제 결정이 필요한 별개의 동작이라 기존처럼 파일마다 확인 대화상자를 띄운다.
+- **제거** (버튼/메뉴 이름: "제거", 예전 이름 "목록에서 제거"): 관리 리스트에서 선택한 항목을 활성 목록에서 뺀다 (실제 동영상 파일은 삭제되지 않음 — 실제 파일 삭제 기능은 폴더 목록 쪽에 별도로 있음). **데이터 자체는 사라지지 않고 `IsValid = false`로 표시되어 유지**되며(같은 `library.json`에 그대로 남아있음), "제거된 항목도 표시" 체크박스로 다시 볼 수 있고 나중에 같은 파일명으로 다시 추가하면 재사용할 수 있다 → 아래 "제거(Remove) 메커니즘" 참고. **여러 항목을 동시에 선택해 한 번에 제거할 수 있다**(아래 "다중 선택" 항목 참고)
+- **재생**: 선택한 파일을 OS 기본 연결 프로그램으로 실행, 재생 시 해당 항목의 재생횟수(PlayCount) 증가
+  - **리스트 보기**: 행(row)의 어느 영역을 더블클릭해도 재생된다 (`ListViewItem`의 `MouseDoubleClick` 이벤트를 `ItemContainerStyle`에서 처리, `ManagedListRow_MouseDoubleClick`) — **구현 완료**.
+  - **아이콘 보기**: 파일명 텍스트를 더블클릭해야만 재생된다(`FileNameCell_MouseLeftButtonDown`). 카드의 다른 영역(썸네일/재생횟수/태그 등)을 더블클릭해도 재생되지 않는다.
+- **우클릭 팝업 메뉴**: 행(항목)을 우클릭하면 컨텍스트 메뉴가 뜬다 — 리스트 보기/아이콘 보기 모두 동일하게 지원.
+  - **재생**: 위 재생과 동일
+  - **이름변경** (단축키 **F2**): `RenameWindow`로 새 파일명을 입력받아 실제 디스크 파일을 `File.Move`로 rename하고, 성공 시 항목의 `FileName`/`FullPath`를 갱신한다 (관리 리스트에서의 이름 표시만 바뀌는 게 아니라 실제 파일 이름이 바뀐다). 이때 같은 폴더의 `{예전 이름}.thumbnail.jpg`/`{예전 이름}.original{확장자}` 파일이 있으면 새 이름에 맞춰 함께 rename하고 `ThumbnailPath`/`ThumbnailOriginalPath`도 갱신한다(`RenameHelper.RenameAssociatedFile`) — **구현 완료**. 대상 이름이 이미 존재하는 등 썸네일/원본 rename이 실패해도 동영상 파일 이름 변경 자체는 그대로 유지된다(부가 정리로 취급, 조용히 건너뜀). **이름이 바뀌면 정렬 순서상 위치도 바뀌므로(라이브 정렬), 그 항목이 지금 선택돼 있으면 바뀐 위치로 자동 스크롤해서 따라간다**(2026-08-14 추가, **구현 완료**) — **어느 경로로 이름이 바뀌었든** 동일하게 적용된다: F2/우클릭 "이름변경"(`RenameWindow`)뿐 아니라 [속성 관리](properties-management.md)의 파일명 텍스트 상자 편집도 해당된다. `MainWindow.ManagedItem_PropertyChanged`가 `FileName` 변경을 감지해(다른 창에서 바꿔도 이 항목의 `PropertyChanged`를 통해 알 수 있으므로 — [공통 관리](common-management.md)의 창 관리 정책 규칙 2와 동일한 메커니즘) 그 항목이 현재 선택 상태(`GetSelectedManagedItem()`)면 `SelectAndScrollToManagedItem(item)`을 호출하는 방식으로 한 곳에 모아뒀다(각 rename 진입점마다 따로 호출하지 않음). **라이브 정렬로 재배치된 직후 곧바로 호출하면 레이아웃이 아직 갱신되지 않아 `ScrollIntoView`가 조용히 아무 효과가 없는 문제가 있었다**(실제로 재현 확인함 — 새 위치로 재배치는 됐지만 스크롤은 예전 위치 그대로 남아있었음) — 시작 시 선택 항목을 복원할 때 레이아웃이 준비되는 `Window.Loaded`까지 스크롤을 미루는 것과 같은 이유다. `Dispatcher.BeginInvoke(..., DispatcherPriority.ContextIdle)`로 레이아웃이 반영된 뒤로 호출을 미뤄서 해결했다. 처음에는 `RenameManaged_Click`(F2 경로)에만 이 호출을 넣었는데, 속성 창에서 이름을 바꾸면 리스트가 따라가지 않는 버그가 있어(2026-08-14 발견·수정) `ManagedItem_PropertyChanged`로 옮겨 모든 진입점이 공유하도록 고쳤다.
+  - **속성** (단축키 **F1**): [속성 관리](properties-management.md) 참고
+  - **복구**: 선택 항목이 제거된(`IsValid = false`) 상태면 다시 활성으로 되돌린다(`RestoreManaged_Click`, `item.IsValid = true`). **여러 항목을 선택했으면 그중 제거된 상태인 항목만 골라 복구하고, 이미 활성 상태인 항목은 조용히 건너뛴다**(2026-08-02 변경 — 예전에는 단일 선택만 가능했고, 선택 항목이 활성 상태면 안내 메시지만 표시했음. 지금은 선택한 항목이 모두 활성 상태일 때만 안내 메시지를 표시한다). "관리 리스트에 추가"로 같은 파일명을 다시 스캔해서 재사용을 거치지 않고도 바로 복구할 수 있는 지름길이다 — **구현 완료**.
+  - **삭제** (단축키 **Del**): 기존 "제거"와 동일한 동작이다(`RemoveFromManagedList_Click` 핸들러를 그대로 공유) — 아래 "제거(Remove) 메커니즘"에 따라 `IsValid = false`로 바뀐다 — **구현 완료**.
+  - **완전삭제**: `PermanentlyDeleteManaged_Click`. 확인 후 `_managedItems`에서 항목 자체를 제거한다 — 다음 자동 저장부터 `library.json`에 다시 나타나지 않는다(되돌릴 수 없음). 실제 동영상 파일은 삭제하지 않는다 — **구현 완료**.
+  - **다중 선택** (2026-08-02 추가, **구현 완료**) — 리스트 보기/아이콘 보기 모두 `SelectionMode="Extended"`로 여러 항목을 Ctrl/Shift+클릭으로 동시에 선택할 수 있다. **복구/삭제(제거)/완전삭제 세 가지는 선택한 모든 항목에 한 번에 적용된다**(`GetSelectedManagedItems()`가 선택된 항목 목록을 반환, 확인 대화상자 문구도 1개 선택 시 파일명을, 여러 개 선택 시 "선택한 N개 항목"으로 표시). 속성/이름변경/재생은 여전히 단일 항목 대상이다(`GetSelectedManagedItem()`, 여러 개를 동시에 이름변경/재생하는 것은 의미가 없으므로 다중화하지 않음).
+  - 우클릭한 항목이 이미 선택되어 있던 다중 선택의 일부이면 선택을 그대로 유지하고(다중 선택 대상 메뉴 동작을 위함), 선택되지 않은 항목을 우클릭하면 그 항목 하나만 선택한다(`ManagedListItem_PreviewMouseRightButtonDown`/`ManagedIconItem_PreviewMouseRightButtonDown`, 탐색기와 동일한 동작 — 2026-08-02 변경, 예전에는 우클릭 시 항상 그 항목 하나만 선택되어 다중 선택이 불가능했음).
+  - F1/F2/Del 단축키는 `MainWindow`의 `PreviewKeyDown`에서 전역으로 처리하며, 관리 리스트에서 선택된 항목(들)을 대상으로 동작한다(Del은 다중 선택 시 선택된 모든 항목에 적용됨). **Del 키는 포커스가 `TextBox`(예: 파일명 검색 상자)에 있을 때는 무시된다**(`e.OriginalSource is not TextBox` 체크) — 그렇지 않으면 텍스트 편집 중 Delete로 글자를 지우려다 항목이 삭제되는 문제가 생기기 때문 — **구현 완료**.
+- **정렬**:
+  - 리스트 보기의 각 컬럼 헤더를 클릭하면 해당 컬럼 기준으로 정렬 (클릭할 때마다 오름차순/내림차순 토글). 파일명/크기/재생횟수/태그/배우/메모 모두 정렬 가능.
+  - (예전에는 재생횟수 기준 정렬을 위한 전용 버튼이 툴바에 별도로 있었으나, 헤더 클릭으로도 충분히 정렬할 수 있어 제거함 — **재생횟수 컬럼이 보일 때만** 재생횟수 기준 정렬이 가능하다.)
+  - **파일명 정렬은 자연 정렬(natural sort)을 쓴다**(2026-08-14 추가, **구현 완료**) — 기본 사전식(문자열) 비교로는 "abp-10.mp4"가 "abp-2.mp4"보다 앞에 오는 문제가 있어("1" < "2"라 "10"을 "1"+"0"으로 취급), `FileNameNaturalComparer.cs`가 문자열을 문자 구간/숫자 구간으로 나눠(정규식 `(\d+)`) 숫자 구간은 값으로, 문자 구간은 문자열로 비교한다 — 오름차순 예: `abp-1 → abp-2 → abp-10`. **다른 컬럼(크기/재생횟수/태그/배우/메모/폴더명/코드/시리즈/출시일)은 자연 정렬 대상이 아니다** — 파일명만 해당하며, 요청받은 범위를 그대로 따른 것이다. **구현 방식**: `MainWindow.SetSort`가 컬럼이 파일명일 때만 `ListCollectionView.CustomSort`(오름차순/내림차순 각각 `FileNameNaturalComparer.Ascending`/`Descending` 싱글턴)로 전환하고, 다른 컬럼은 기존처럼 `SortDescriptions`를 쓴다 — 둘은 `ListCollectionView`에서 동시에 쓸 수 없어 전환 전에 반대쪽을 반드시 먼저 비워야 한다. 실제 항목("natural-test-1/2/10.mp4", 검증 후 완전삭제로 정리함)으로 오름차순(1→2→10)/내림차순(10→2→1) 모두 확인했다.
+- **검색(필터) — 리스트 위 상시 UI**: 관리 리스트 위쪽(툴바 5번째 줄)에 필터 영역이 항상 표시된다 (더 이상 헤더를 우클릭해서 열지 않는다).
+  - **시리즈 선택**(2026-08-09 추가, **구현 완료**): 필터 영역 맨 왼쪽에 있는 콤보박스(`SeriesFilterComboBox`)로, 태그/배우 필터와 달리 팝업이 아니라 **항상 보이는 단일 선택 콤보박스**다(시리즈 자체가 항목당 하나만 지정되므로 — [시리즈 관리](series-management.md) 참고). 항목은 "(전체)"(필터 없음을 나타내는 센티널, `MainWindow.AllSeriesLabel`) + 시리즈 마스터 목록(이름 기준 오름차순)이며, 시리즈가 추가/삭제될 때마다(`MasterSeries_CollectionChanged`) `RefreshSeriesFilterComboBox()`가 항목과 현재 선택 상태를 다시 맞춘다. 선택을 바꾸면 `item.Series`가 정확히 일치하는 항목만 남기고 필터링되며(대소문자 무시), 선택 상태는 다른 필터들과 마찬가지로 [공통 관리](common-management.md)의 설정 관리에 저장되어 다음 실행에도 유지된다.
+  - **파일명 검색**: 텍스트 상자에 입력하는 즉시(`TextChanged`) 부분 일치로 필터링된다.
+  - **폴더명 검색**(2026-08-07 추가, **구현 완료**): "파일명 검색" **바로 오른쪽**에 있다(`FolderFilterTextBox`). `ManagedVideoItem.FolderName`(파일이 들어있는 폴더의 마지막 이름 한 단계, "폴더명" 컬럼과 같은 값) 기준으로 입력하는 즉시 부분 일치로 필터링된다 — 파일명 검색과 완전히 동일한 패턴(`_folderFilter`, `FolderFilterTextBox_TextChanged`)이며 "필터 초기화" 대상에도 포함된다.
+  - **태그 필터**: "태그 필터" 버튼을 클릭하면 태그 마스터 목록 전체를 체크박스로 보여주는 팝업이 뜨고, 선택한 태그를 포함한 항목만 표시된다 (여러 태그 선택 가능) → [태그 관리](tag-management.md) 참고.
+  - **배우 필터**: "배우 필터" 버튼을 클릭하면 배우 마스터 목록 전체(이름 기준 오름차순)를 체크박스로 보여주는 팝업이 뜨고, 선택한 배우가 지정된 항목만 표시된다 (**여러 명 동시 선택 가능**) — **구현 완료** (태그 필터와 완전히 동일한 UI/로직 패턴, `ActorFilterPopup`/`ActorFilterList`/`ActorFilterApply_Click`/`ActorFilterClear_Click`) → [배우 관리](actor-management.md) 참고.
+  - **제거된 항목도 표시**: 체크박스(`ShowRemovedItemsCheckBox`)를 켜면 아래 [제거(Remove) 메커니즘](#제거remove-메커니즘)에 의해 제거된(`IsValid = false`) 항목도 목록에 함께 표시된다 — **구현 완료**. **툴바 2번째 줄(보기 모드 라디오 오른쪽)에 있다**(2026-08-09 위치 변경 — 예전에는 이 필터 영역 줄에 있었으나, 필터라기보다 표시 옵션에 가까워 보기 모드 옆으로 옮겼다). 기본값은 꺼짐이며 [공통 관리](common-management.md)의 설정 관리에 저장된다. 이렇게 표시된 제거 항목은 **글자 색이 회색**으로 보여 활성 항목과 구분된다(리스트 보기/아이콘 보기 모두 `ItemContainerStyle`에 `DataTrigger Binding="{Binding IsValid}"`로 `Foreground="Gray"`를 적용, 셀 내부 `TextBlock`들은 별도 `Foreground`를 지정하지 않아 자동으로 상속받는다). **`IsValid = true`이면서 `IsExist = false`인 항목**(파일을 못 찾는 활성 항목)은 `MultiDataTrigger`로 주황빛(`OrangeRed`)으로 표시된다(2026-08-06 추가) — **구현 완료**.
+  - "필터 초기화" 버튼으로 파일명/폴더명 검색어, 시리즈 선택, 태그 선택, 배우 선택을 한 번에 초기화한다 (제거된 항목 표시 체크박스는 초기화 대상이 아니다).
+  - (향후) 파일명 + 태그 + 재생횟수 조건을 조합하는 고급 검색
+  - 필터 영역 위(툴바 1번째 줄 2번째 줄)의 "(헤더를 우클릭하면 표시할 컬럼을 고를 수 있습니다)" 같은 안내 문구는 `TextWrapping="Wrap"`을 지정해, 창 폭이 좁아 한 줄에 다 들어가지 않으면 잘리지 않고 여러 줄로 표시된다 — **구현 완료** (2026-08-09 변경 — 예전에는 필터 영역과 같은 줄에 `DockPanel`로 배치했으나, 툴바 재배치로 맨 위 파일 갯수/자동 저장 위치 밑 2번째 줄로 옮겨졌다).
+- **헤더 우클릭 → 표시할 컬럼 선택**: (예전에는 헤더 우클릭이 필터였지만) 이제는 컬럼 표시/숨김을 고르는 팝업이 뜬다. 파일명은 항상 표시되며 토글 대상이 아니다. 크기/재생횟수/태그는 기본으로 표시되고, 배우/메모/폴더명/**코드/시리즈/출시일**(2026-08-09 추가)은 기본으로 숨겨져 있다. 코드/시리즈/출시일 컬럼은 각각 `ManagedVideoItem.Code`/`Series`/`ReleaseDate`에 그대로 바인딩되는 단순 텍스트 컬럼이다(태그 컬럼처럼 별도 `CellTemplate` 없이 `DisplayMemberBinding`만 사용, 배우/메모/폴더명 컬럼과 동일한 패턴). 헤더 클릭 정렬도 지원한다(`HeaderTextToSortProperty`에 "코드"/"시리즈"/"출시일" 매핑 추가). 컬럼 표시 여부는 [공통 관리](common-management.md)의 설정 관리에 저장되어 다음 실행 시에도 유지된다 — **구현 완료**.
+  - **폴더명 컬럼** (2026-08-02 추가, **구현 완료**): `ManagedVideoItem.FolderName`(`[JsonIgnore]` 계산 속성, `FullPath`에서 `Path.GetDirectoryName` → `Path.GetFileName`으로 도출)을 표시한다. **전체 경로가 아니라 파일이 들어있는 폴더의 마지막 이름 한 단계만** 보여준다(예: `E:\...\쿠로카와 사리나\a.mp4` → `쿠로카와 사리나`). `FullPath`가 바뀌면(이름 변경/경로 수정/폴더 이동) `FolderName`도 함께 `PropertyChanged`를 발생시켜 화면이 즉시 갱신된다.
+  - **썸네일(아이콘) 컬럼**: 팝업 맨 위에 "썸네일 (맨 앞)" 체크박스가 있다. 켜면 파일명 컬럼보다 앞(리스트 맨 앞)에 읽기 전용 컬럼이 삽입되어, 항목에 썸네일이 지정되어 있는지(`ManagedVideoItem.HasThumbnail`)를 한눈에 보여준다. 기본값은 꺼짐이며, 다른 컬럼처럼 [공통 관리](common-management.md)의 설정 관리에 저장된다 — **구현 완료**. **셀 표시는 체크박스가 아니라 파일 아이콘이다** — 썸네일이 있는 항목만 아이콘이 보이고(`HasThumbnail = true`일 때 `Visibility=Visible`), 없는 항목은 빈 칸으로 보인다(`Visibility=Collapsed`). 표시 전용이며 클릭해도 항목의 썸네일이 바뀌지 않는다. **리스트 헤더에는 텍스트를 표시하지 않는다**(`GridViewColumn.Header = string.Empty`) — 아이콘 자체로 의미가 드러나므로. 헤더 클릭 정렬은 계속 동작한다(`HeaderTextToSortProperty`에서 빈 문자열 헤더를 `HasThumbnail` 정렬로 매핑).
+    - **아이콘(2026-08-02 변경, 구현 완료)**: 이모지(🖼️) 대신 **Windows 탐색기가 `.png` 파일에 실제로 표시하는 셸 아이콘**을 그대로 가져와 쓴다 — `WindowsIconHelper.PngFileIcon` 상세는 [공통 관리](common-management.md) 참고.
+    - **컬럼 너비(2026-08-02 변경, 구현 완료)**: `GridViewColumn.Width = 32`로 **고정**한다 — 예전에는 `double.NaN`(내용 기준 자동 크기)이었는데, 빈 헤더 텍스트 때문에 컬럼이 아이콘보다 좁게 계산되어 아이콘이 잘려 안 보이는 문제가 있었다.
+  - **재생횟수 컬럼은 가운데 정렬**, **크기 컬럼은 오른쪽 정렬**로 셀 값이 표시된다(`PlayCountCellTemplate`/`SizeCellTemplate`) — **구현 완료**.
+- **보기 모드 전환**:
+  - 리스트 보기: 표 형태. 컬럼은 파일명(고정) + 헤더 우클릭에서 선택한 컬럼(크기/재생횟수/태그/배우/메모). 태그는 개별 태그(chip) 형태로 각 단어가 구분되어 보인다.
+  - 아이콘 보기: 썸네일 그리드 형태. 카드 하단에는 파일명 대신 **품번**(`ManagedVideoItem.ProductCode`, `[JsonIgnore]` 계산 속성 — `Path.GetFileNameWithoutExtension(FileName)`)이 표시되고(2026-08-12 변경 — 예전에는 파일명이었다, 재생 더블클릭 대상은 그대로 이 텍스트 영역), 이어서 재생횟수·태그가 표시된다 (태그는 리스트 보기의 태그 컬럼과 같은 칩 스타일, `Tags`가 비어있으면 아무것도 표시되지 않음) — **구현 완료**. **`ProductCode`는 [속성 관리](properties-management.md)의 "품번:" 표시(`ProductCodeText`)와 동일한 계산 규칙**이며, 사용자가 자유롭게 수정하는 `Code` 필드(파일명 첫 "-" 이전 부분 또는 폴더명으로 자동 제안)와는 다른 값이다 — 처음에는 `Code`를 잘못 바인딩해서 카드에 "hunbl-112" 대신 "hunbl"(자동 제안된 접두어)이 보이는 버그가 있었고, `ProductCode` 계산 속성을 추가해 바로잡았다(같은 날 수정). `FolderName`과 동일한 패턴으로 `FileName` setter에서 `OnPropertyChanged(nameof(ProductCode))`도 함께 발생시켜 파일명이 바뀌면 카드도 즉시 갱신된다. **썸네일 이미지 영역을 클릭해 파일 선택 대화상자로 썸네일을 지정하는 기능은 2026-08-12 제거되었다**(`MainWindow.ThumbnailArea_Click` 삭제) — 이 카드 영역에서 썸네일을 지정하는 진입점은 없어졌지만, 관리 리스트 영역으로의 드래그 앤 드롭 추가나 [속성 관리](properties-management.md)의 "썸네일 추가" 버튼으로는 여전히 지정할 수 있다.
+    - **아이콘 크기 선택**(2026-08-12 추가, **구현 완료**): "아이콘 보기" 라디오 버튼 바로 옆에 "아주 큰 아이콘"/"큰 아이콘"/"보통 아이콘"/"작은 아이콘" 4단계를 고르는 콤보박스(`IconSizeComboBox`)가 있다. 기본값은 "보통 아이콘"(예전부터 쓰던 카드 크기, 160x225 카드 + 130x95 썸네일)이며, 나머지 세 단계는 그 비율을 기준으로 위아래로 늘리거나 줄인 값이다. **구현 방식**: `IconSizeSettings.cs`가 카드/썸네일 크기와 폰트 크기(파일명/재생횟수/태그/기본 아이콘 이모지)를 담은 `INotifyPropertyChanged` 싱글턴(`IconSizeSettings.Current`)이고, 아이콘 보기 `DataTemplate`의 각 `Width`/`Height`/`FontSize`가 `{Binding Source={x:Static local:IconSizeSettings.Current}, Path=...}`로 이 싱글턴에 직접 바인딩되어 있다 — `ManagedIconView`의 `ItemTemplate` 자체는 하나뿐이고, `IconSizeComboBox_SelectionChanged`가 `IconSizeSettings.Current.Apply(size)`를 호출해 싱글턴의 속성을 바꾸면 `PropertyChanged`를 통해 이미 화면에 그려진 모든 카드가 즉시 다시 그려진다(카드마다 다른 템플릿을 쓰거나 수동으로 다시 그릴 필요 없음). **선택 상태는 설정 파일에 저장된다**(`AppSettings.IconSizePreset`, 2026-08-12 추가) — [공통 관리](common-management.md)의 설정 관리 참고.
+      - **프리셋별 실제 크기(px, `IconSizeSettings.Apply` 기준, 2026-08-16 표로 정리)**:
+
+        | 프리셋 | 썸네일 크기 | 카드 전체 크기 |
+        |---|---|---|
+        | 아주 큰 아이콘 | 240 x 175 | 270 x 380 |
+        | 큰 아이콘 | 180 x 131 | 210 x 300 |
+        | 보통 아이콘 (기본값) | 130 x 95 | 160 x 225 |
+        | 작은 아이콘 | 85 x 62 | 110 x 155 |
+
+        [공통 관리](common-management.md)의 "성능" 절에서 언급하듯, 실제 이미지 디코딩은 선택한 프리셋과 무관하게 `ConverterParameter=240`(가장 큰 프리셋 기준) 고정 해상도로 이루어지고, 화면에는 프리셋별 썸네일 크기에 맞춰 축소되어 표시된다.
+    - **카드에 표시할 정보 선택**(2026-08-12 추가, **구현 완료**): 아이콘 보기의 **빈 공간**(카드가 없는 영역)을 우클릭하면 "표시할 정보" 팝업이 마우스 위치에 뜬다(`ManagedIconView_MouseRightButtonUp` — 클릭 지점의 조상에 `ListBoxItem`이 없을 때만 열어서, 카드 자체를 우클릭했을 때 뜨는 기존 항목 컨텍스트 메뉴와 겹치지 않는다). 체크박스 4개(크기/재생횟수/태그/시리즈)로 각 정보의 표시 여부를 토글한다 — 기본값은 재생횟수·태그 켜짐(예전부터의 카드 모습과 동일), 크기·시리즈는 꺼짐. **구현 방식**: `IconCardFieldsSettings.cs`가 `IconSizeSettings`와 동일한 싱글턴 패턴(`IconCardFieldsSettings.Current`)이고, 카드의 각 정보 `TextBlock`/`ItemsControl`이 `Style.Triggers`의 `DataTrigger`(`Binding Source`를 이 싱글턴으로 지정)로 `Visibility`를 토글한다(기존 `HasThumbnail` 표시/숨김과 같은 패턴). `IconFieldToggle_Click`이 체크박스 `Tag`(Size/PlayCount/Tags/Series)로 어느 속성을 바꿀지 분기한다. 헤더 우클릭(표시할 컬럼 선택)과 마찬가지로 `Popup`으로 구현했다(체크박스 목록이라 `ContextMenu`보다 다루기 쉬움). **이 선택 상태도 설정 파일에 저장된다**(`AppSettings.IconShowSize`/`IconShowPlayCount`/`IconShowTags`/`IconShowSeries`, 아이콘 크기와 같은 날 같은 이유로 추가됨) — [공통 관리](common-management.md)의 설정 관리 참고.
+- **썸네일 관리**: 동영상 썸네일 생성/뷰어의 공통 인프라(파일 잠금 버그, 뷰어 3종, `ThumbnailHelper.CreateThumbnail`, 인터넷 이미지 드래그 앤 드롭)는 [공통 관리](common-management.md)의 "썸네일 관리" 절 참고. 동영상 파일은 320x240 리사이즈본을 동영상 파일과 같은 폴더에 `{파일명}.thumbnail.jpg`로 저장한다.
+- **화면 표시 컬럼**: 파일명(고정) + 사용자가 헤더 우클릭에서 선택한 컬럼(썸네일/크기/재생횟수/태그/배우/메모). 썸네일 컬럼만 파일명보다 앞에 삽입되고 나머지는 파일명 뒤에 추가된다. 수정일/전체경로는 JSON에는 저장되지만 컬럼으로는 노출하지 않는다 (속성 창·하단 상세정보 패널에서는 노출됨).
+- **태그 지정**: 관리 리스트 항목에 태그를 붙일 때는 자유 텍스트 입력이 아니라, 태그 마스터 목록에서 원하는 태그를 체크박스로 선택하는 방식이다 ([속성 관리](properties-management.md)에서 처리, 여러 태그 동시 선택 가능). 리스트 보기에서 항목의 태그 칩 영역을 클릭해도 같은 속성 창이 열린다(우클릭 메뉴의 "속성"/상단 "속성" 버튼과 동일 동작) — **구현 완료**.
+- **선택된 항목 상세 정보**: 관리 리스트 하단에 현재 선택된 항목의 모든 정보(파일명, 크기, 수정일, 전체 경로, 재생횟수, 배우, 메모, 태그)를 보여주는 패널이 있다. 메모는 별도 줄에 `TextWrapping="Wrap"` + `MaxHeight`(약 2줄 분량)로 표시되어 짧은 메모는 그대로, 긴 메모는 2줄까지 보이고 그 이상은 잘린다 — **구현 완료**. 태그는 해당 항목에 실제로 지정된 것만 표시한다(마스터 목록 전체가 아님). 리스트 보기/아이콘 보기 중 어느 쪽에서 선택하든 동일하게 갱신되며, 선택된 항목이 없으면 "선택된 항목이 없습니다" 안내만 보인다.
+- **선택 항목 동작 버튼(속성/재생)**: 관리 리스트 상단 툴바에 위치한다("재생"은 3번째 줄, "속성 (F1)"은 4번째 줄) — **구현 완료** (예전에는 관리 리스트 맨 하단에 있었으나 상단으로 이동함). 우클릭 메뉴/F1과 동일한 핸들러를 공유한다. **"이름변경"/"목록에서 제거" 버튼은 2026-08-09에 삭제되었다** — F2/Del 단축키와 우클릭 메뉴, "편집" 메뉴로 기능은 동일하게 유지된다.
+- **파일 없이 추가** (2026-08-06 추가, **구현 완료**, 2026-08-09 위치 변경): 툴바 3번째 줄, "목록 추가" 버튼 **왼쪽**에 있다(예전에는 "속성 (F1)" 버튼 왼쪽이었으나 툴바 재배치로 옮겨짐). 아직 실제로 구하지 못한 작품 등을 미리 기록해두기 위해, 실제 동영상 파일 없이 관리 리스트 항목을 만들 수 있다. 버튼 자체는 `ManagedVideoItem.IsPlaceholder = true`로 표시된 새 항목을 만들어 [속성 관리](properties-management.md)의 "새 항목" 모드로 여는 진입점일 뿐이며, 입력/커밋/재사용 등 상세 동작은 그 문서를 참고한다. **제거된 항목으로 취급된다**는 점, **추가되면 곧바로 선택·스크롤된다**는 점, **나중에 실제 파일이 추가되면 데이터를 재사용한다**는 점은 아래 [제거(Remove) 메커니즘](#제거remove-메커니즘)과 함께 이해해야 한다.
+
+### 제거(Remove) 메커니즘
+
+**2026-08-06 대대적 재설계** — 예전에는 "제거됨" 여부를 `IsArchived` 하나의 bool로 표현하고 활성/제거 항목을 `library.json`/`removed.json` 두 파일로 나눠 저장했다. 지금은 **파일을 하나로 합치고**(`removed.json` 개념 자체를 없앰), 상태도 서로 독립된 **두 개의 축**으로 분리했다:
+
+- **`IsValid`** — 사용자가 이 항목을 관리 리스트에 계속 두고 싶어 하는지("유효"한지). `false`면 예전의 "제거됨"과 같은 의미다.
+- **`IsExist`** — `FullPath`의 실제 파일이 지금 디스크에 있는지. 시작 시(그리고 향후 재확인 시점마다) 모든 항목에 대해 다시 판단해서 갱신한다.
+
+이 둘은 **서로 독립적**이다 — 예를 들어 외장 드라이브를 잠깐 분리해서 `IsExist = false`가 되어도 `IsValid`는 건드리지 않으므로, 사용자가 명시적으로 "제거"하지 않는 한 그 항목은 관리 리스트에서 사라지지 않고 계속 활성 상태로 남는다(예전에는 파일이 없어지면 자동으로 "제거됨" 취급되어 활성 목록에서 빠졌었다 — 이 자동 강등이 이번 재설계로 사라졌다). 네 가지 조합이 모두 의미가 있다:
+
+| `IsValid` | `IsExist` | 의미 | 화면 표시 |
+|---|---|---|---|
+| true | true | 평범한 활성 항목 | 검정 글자 |
+| true | false | 사용자는 계속 원하지만 지금은 파일을 못 찾음(드라이브 분리 등) | **주황빛 글자**(`OrangeRed`) — 기본 목록에 그대로 노출됨 |
+| false | true | 사용자가 명시적으로 "제거"했지만 파일 자체는 존재 | 회색 글자, "제거된 항목도 표시" 체크 시에만 노출 |
+| false | false | 제거됐고 파일도 없음(또는 "파일 없이 추가"로 만든, 실제 파일이 아예 없던 플레이스홀더) | 회색 글자, "제거된 항목도 표시" 체크 시에만 노출 |
+
+- **저장**: `SaveLibrary()`가 `_managedItems` 전체(유효/제거 항목 모두)를 `ManagedListRepository.Save`로 `AppPaths.LibraryPath`(`library.json`) **하나에만** 저장한다.
+- **로딩**: `LoadInitialData()`가 `library.json` 하나만 읽어 `_managedItems`를 채운다. **레거시 마이그레이션**(2026-08-06 추가): 예전 버전이 남긴 `removed.json`(`AppPaths.LegacyRemovedLibraryPath`)이 있으면 시작 시 한 번만 읽어 `IsValid = false`로 강제한 뒤 같은 컬렉션에 합치고, 병합이 끝나면 그 파일을 삭제한다 — 다음 실행부터는 이 단계가 다시 일어나지 않고(파일이 없으므로 건너뜀) 모든 항목이 `library.json` 하나에서만 로드된다. 예전 JSON의 `IsArchived` 필드는 새 모델에 더 이상 없는 속성이라 역직렬화 시 조용히 무시되고, `IsValid`/`IsExist`가 없는 예전 레코드는 클래스 필드 기본값(`true`/`true`)을 그대로 받는다 — `library.json`에서 읽은 항목은 이미 "활성"이었으므로 정확히 맞는 기본값이고, 뒤이은 파일 존재 여부 확인 단계가 `IsExist`를 실제 상태로 다시 맞춘다.
+- **제거되는 경우**: 사용자가 "제거" 버튼/메뉴(예전 이름 "목록에서 제거")를 실행했을 때 → `item.IsValid = false`. **더 이상 파일이 없어졌다고 자동으로 제거되지 않는다** — 아래 "파일 존재 여부 확인" 참고.
+- **파일 존재 여부 확인**(`MainWindow.UpdateFileExistence`, 시작 시 자동 실행): **활성/제거 여부와 무관하게 모든 항목**을 대상으로 `File.Exists(FullPath)`를 다시 확인해 `IsExist`를 갱신한다("파일 없이 추가"된 `IsPlaceholder` 항목은 항상 `false`로 취급 — 실제 폴더가 없는 경로이므로). `IsValid`는 이 과정에서 전혀 바뀌지 않는다.
+- **화면 노출**: 기본적으로 `IsValid = false`인 항목은 관리 리스트(리스트 보기/아이콘 보기, 정렬, 필터)에 나타나지 않는다(`FilterManagedItem`에서 제외). 단, **관리 리스트 필터 영역의 "제거된 항목도 표시" 체크박스**(`ShowRemovedItemsCheckBox`)를 켜면 함께 표시된다 — 이 상태는 `AppSettings.ShowRemovedItems`로 저장되어 다음 실행에도 유지된다. `IsValid = false`인 항목은 글자 색이 회색으로, `IsValid = true`이면서 `IsExist = false`인 항목(파일을 못 찾는 활성 항목)은 주황빛으로 표시되어 구분된다(`ItemContainerStyle`의 `DataTrigger`/`MultiDataTrigger`).
+- **복원 방법 두 가지**:
+  1. **재사용**(암묵적): "관리 리스트에 추가" 시, 추가하려는 파일과 **파일명이 같은**(대소문자 **구분**, "파일 없이 추가"로 만든 항목은 확장자 없는 이름으로도 매칭) `IsValid = false`인 항목이 있으면 재사용 여부를 묻는다. "예"를 선택하면 그 항목의 `FileName`/`FullPath`/`SizeBytes`/`ModifiedDate`를 새 파일 것으로 갱신하고 `IsValid`/`IsExist`를 모두 `true`로, `IsPlaceholder`를 `false`로 되돌려 다시 활성화한다 — 재생횟수/태그/배우/메모/썸네일은 그대로 유지된다. 파일명이 아니라 경로로 매칭하지 않는 이유는, 파일이 이동된 뒤에도 같은 파일로 인식해 데이터를 이어가기 위함이다.
+  2. **복구**(명시적, **구현 완료**): "제거된 항목도 표시"로 항목을 보이게 한 뒤, 우클릭 메뉴의 "복구"를 누르면 폴더를 다시 스캔하지 않고도 바로 `IsValid = true`로 되돌릴 수 있다 (`RestoreManaged_Click`).
+- **완전삭제(하드 삭제, 구현 완료)**: "제거"(소프트 삭제, `IsValid = false`)와 별개로, **관리 데이터 자체를 완전히 지우는** 기능이 두 곳에 있다 — 관리 리스트 우클릭 메뉴의 "완전삭제"(`PermanentlyDeleteManaged_Click`), [속성 관리](properties-management.md) 하단의 "완전 삭제" 버튼. 둘 다 확인 대화상자를 거친 뒤 `_managedItems.Remove(item)`으로 컬렉션 자체에서 항목을 제거한다 — 이후 자동 저장부터는 `library.json`에 **다시 나타나지 않는다** (되돌릴 수 없음). 실제 동영상 파일은 삭제하지 않는다(관리 데이터만 삭제 — 파일 삭제는 폴더 목록 쪽의 별도 기능).
+- **알려진 한계**: 재사용/복구 매칭은 파일명 문자열 완전 일치(`StringComparison.Ordinal`, 대소문자 구분, "파일 없이 추가" 항목은 확장자 제외 대소문자 무시)만 사용한다 — 크기/해시 등으로 더 정교하게 구분하지 않는다. 동일한 파일명을 가진 서로 다른 제거된 항목이 여러 개 있으면 그중 하나가(순서 임의) 매칭된다.
+- 태그/배우 마스터 목록에서 이름 변경/삭제 시의 동기화는 활성/제거된 항목 모두에 적용된다 (전체 `_managedItems`를 대상으로 하므로) → [태그 관리](tag-management.md)/[배우 관리](actor-management.md) 참고.
+- "다른 이름으로 저장"/"열기"(수동 내보내기/가져오기)는 `_managedItems` 전체(유효+제거됨)를 하나의 파일로 다룬다 — 예전과 동일(원래도 파일 분리와 무관했음).
+
+## 관리 리스트 JSON 파일 관리
+
+- **기본 저장 위치**: 사용자별 로컬 데이터 폴더(`%LOCALAPPDATA%\VideoVault\`, 즉 `Environment.SpecialFolder.LocalApplicationData` 하위)를 기본 경로로 사용한다. 다른 PC와 동기화되지 않는 로컬 전용 위치이므로, 파일 내 `FullPath` 등 이 PC에 종속된 경로 정보가 깨지지 않는다. 유효/제거 항목 모두 `library.json` **한 파일**에 `IsValid`로 구분해 저장한다(2026-08-06 변경 — 예전에는 `removed.json`으로 나눠 저장했음) — 위 "제거(Remove) 메커니즘" 참고.
+- **자동 로딩**: 프로그램 시작 시 `library.json`이 존재하면 자동으로 불러와 관리 리스트 컬렉션을 채운다. 없으면(최초 실행 등) 빈 관리 리스트로 시작한다. 예전 버전이 남긴 `removed.json`이 있으면 시작 시 한 번 병합·삭제하는 마이그레이션도 함께 실행된다 — 같은 절 참고.
+- **열기**: 기본 위치가 아닌 다른 JSON 파일을 불러오고 싶을 때 사용하는 수동 열기 기능 (기본 저장 위치와는 별개, 유효/제거 구분 없이 파일 하나에 전체를 담아 다룸)
+- **저장**: 관리 리스트에 변경이 발생할 때마다(추가/제거/편집/재생횟수 증가/태그·썸네일 변경 등) 기본 저장 위치(`library.json`)에 **자동 저장**한다. 별도의 "저장" 버튼 클릭 없이 항상 최신 상태가 디스크에 반영된다. "다른 이름으로 저장"을 통해 임의 위치에(유효+제거 항목 전체를 하나의 파일로) 별도로 저장하는 기능은 유지
+  - **debounce 시간**: 마지막 변경 후 500ms — **구현 완료** (관리 리스트/태그/설정 자동 저장 모두 동일하게 500ms 적용)
+- **편집**: 관리 리스트 항목(특히 tags, 재생횟수 등)을 사용자가 직접 수정 가능
+- **저장 실패 처리**: 저장 중 예외가 발생하면 사용자에게 오류를 알리고(MessageBox), 메모리상의 관리 리스트는 그대로 유지한다 (자동으로 재시도하지 않음. 사용자가 재시도할 수 있는 방법은 추후 검토)
+- **버전 필드 (향후)**: 향후 데이터 마이그레이션을 지원하기 위해 JSON 최상위에 `Version` 필드를 추가하는 것을 고려한다. 도입 시 현재의 "배열 하나"였던 최상위 구조를 아래처럼 감싸는 하위 호환 마이그레이션이 필요하다.
+
+  ```json
+  {
+      "Version": 1,
+      "Items": []
+  }
+  ```
+
+  (아직 미구현 — 현재는 `ManagedVideoItem` 배열을 최상위로 바로 저장한다.)
+- (향후) **백업/복원**: `library.json`/`tags.json`을 한 번에 내보내기·가져오기 하는 기능. "열기"/"다른 이름으로 저장"과 달리 두 파일을 묶어서 처리하는 원클릭 기능으로 구상.
+
+## 데이터 모델 (관리 리스트 JSON)
+
+관리 리스트의 각 항목은 아래 필드를 가진다.
+
+| 필드 | 설명 |
+|---|---|
+| `FileName` | 파일명 |
+| `SizeBytes` | 파일 크기 (바이트) |
+| `ModifiedDate` | 수정일 |
+| `FullPath` | 전체 경로 |
+| `PlayCount` | 재생횟수 |
+| `Tags` | 태그 목록 (문자열 배열). setter가 `private`이라 `[JsonInclude]`를 반드시 붙여야 역직렬화가 된다 — [공통 관리](common-management.md)의 컨벤션 참고 |
+| `ThumbnailPath` | 아이콘 보기/썸네일 뷰어에서 사용할 320x240 리사이즈본 이미지 파일 경로 (미지정 시 null, 기본 아이콘 표시) |
+| `ThumbnailOriginalPath` | 리사이즈 전 원본 이미지 파일 경로 (미지정 시 null). 원본창에서 사용 — [공통 관리](common-management.md) 참고 |
+| `Actors` | 배우 이름 목록 (문자열 배열, 배우 마스터 목록의 이름만 참조). `Tags`와 마찬가지로 setter가 `private`이라 `[JsonInclude]` 필요. 여러 명 지정 가능 — [배우 관리](actor-management.md) 참고. 예전 버전의 단일 문자열 `Actor` 필드를 대체한 것으로, 예전 `library.json`을 불러오면 `Actor` 값은 무시되고 빈 목록으로 시작한다 |
+| `Memo` | 메모 (문자열, 기본값 빈 문자열) — [속성 관리](properties-management.md)에서 편집 |
+| `Code` | 코드 (문자열, 기본값 빈 문자열) — [속성 관리](properties-management.md)에서 편집. 비어있을 때는 `ManagedVideoItem.DeriveCode(fileName, fullPath)`로 자동 제안(파일명의 첫 "-" 이전 부분, "-"가 없으면 폴더명), 저장된 값이 있으면 그 값 유지. 파일명을 바꾸면 제안값도 다시 계산됨. "파일 이동" 버튼이 이 값을 폴더명으로 사용 |
+| `ReleaseDate` | 출시일 (문자열, 기본값 빈 문자열, 2026-08-02 추가) — [속성 관리](properties-management.md)에서 "코드" 옆에 편집. 자동 제안이나 형식 검증 없이 자유 텍스트 그대로 저장 |
+| `Series` | 이 항목이 속한 시리즈 (문자열, 기본값 빈 문자열, 2026-08-09 추가). 시리즈 마스터 목록(`series.json`)의 이름 하나만 참조하며, 태그/배우와 달리 **단일 선택**이다(속성 창의 콤보박스로 선택). `Code`/`ReleaseDate`와 마찬가지로 public setter라 `[JsonInclude]`가 필요 없다 — [시리즈 관리](series-management.md) 참고 |
+| `IsValid` | 사용자가 이 항목을 관리 리스트에 계속 두고 싶어 하는지 여부 (bool, 기본값 true, 2026-08-06 추가 — 예전 `IsArchived`를 대체, 의미는 반대). false면 "제거된" 상태로, 데이터는 유지되지만 기본적으로 화면에는 노출되지 않는다("제거된 항목도 표시" 체크박스로 노출 가능). `IsExist`와 독립적인 축이다 — 위 "제거(Remove) 메커니즘" 참고 |
+| `IsExist` | `FullPath`의 실제 파일이 지금 디스크에 있는지 여부 (bool, 기본값 true, 2026-08-06 추가). 시작 시 모든 항목에 대해 다시 판단해 갱신된다(`MainWindow.UpdateFileExistence`). `IsValid`를 자동으로 바꾸지 않으므로, 파일이 일시적으로 없어져도(외장 드라이브 분리 등) 관리 리스트에서 사라지지 않고 화면에서 다른 색(주황빛)으로만 표시된다 — 위 "제거(Remove) 메커니즘" 참고 |
+| `IsPlaceholder` | 실제 동영상 파일 없이 "파일 없이 추가" 버튼으로 수동으로 추가된 항목인지 여부 (bool, 기본값 false, 2026-08-06 추가). 이런 항목은 추가되는 즉시 `IsValid = false`도 함께 설정되어(제거된 항목과 동일하게 취급) `library.json`에 저장된다. true인 동안은 시작 시 파일 존재 여부 확인(`UpdateFileExistence`)에서 항상 `IsExist = false`로 취급되며, [속성 관리](properties-management.md)에서 파일이 있어야 동작하는 기능(재생/파일 변경·이동)이 비활성화된다(썸네일은 예외 — 고정 폴더에 저장되어 계속 가능). 나중에 같은 이름(확장자 없이도 매칭)의 실제 파일이 추가되면 재사용 매칭 시 `IsValid`/`IsExist`가 true로, `IsPlaceholder`가 false로 되돌아간다 |
+| `AutoThumbnailGenerated` | 썸네일이 자동 생성된 것인지 여부 (bool). [공통 관리](common-management.md)의 썸네일 관리 절에 있는 향후 자동 생성 기능을 위한 필드 — **아직 미구현**, 현재 코드의 `ManagedVideoItem`에는 없다 |
+
+화면에는 `FileName`(고정) + 사용자가 선택한 컬럼(`SizeBytes`, `PlayCount`, `Tags`, `Actor`, `Memo`, `FolderName`, `Code`, `Series`, `ReleaseDate` 중 헤더 우클릭으로 고른 것)을 표시한다. 기본으로는 `SizeBytes`/`PlayCount`/`Tags`가 켜져 있고 `Actor`/`Memo`/`FolderName`/`Code`/`Series`/`ReleaseDate`는 꺼져 있다. "배우" 컬럼은 `Actors`를 쉼표로 이어붙인 `ActorsDisplay`를 표시한다. `FolderName`은 JSON에 저장되지 않는 계산 속성으로, `FullPath`의 마지막 폴더명만 보여준다. (`ThumbnailPath`는 아이콘 보기 모드에서 이미지로 렌더링되어 표시됨)
+
+## 이 영역의 컨벤션
+
+- 동영상 파일 확장자 목록은 `ManagedListImporter.VideoExtensions` 배열 하나로 관리한다(2026-08-05 변경 — 예전에는 `FolderListWindow.xaml.cs`에 별도로 있었으나, 관리 리스트 드래그 앤 드롭 추가 기능이 같은 목록을 필요로 해서 공용 위치로 옮겼다). `FolderListWindow`의 폴더 스캔도 이 목록을 참조한다.
+- 관리 리스트의 데이터 모델(JSON 직렬화 대상) 및 JSON 파일 읽기/쓰기 로직은 UI 코드(`MainWindow.xaml.cs`)와 분리한 별도 클래스로 관리한다.
+- "폴더 목록"(임시 스캔 결과)과 "관리 리스트"(영속 데이터)는 서로 다른 데이터 소스이므로 혼동하지 않도록 변수/컬렉션 이름을 명확히 구분한다.
+- 실제 파일 이름 변경(`RenameHelper`)은 관리 리스트 항목의 표시용 `FileName` 문자열만 바꾸는 게 아니라 디스크의 실제 파일을 `File.Move`로 rename한다. 따라서 대상 경로 존재 여부 확인, 실패 시 사용자 알림이 필수다.
+- 관리 리스트 JSON의 기본 저장 경로(`%LOCALAPPDATA%\VideoVault\library.json`)는 하드코딩된 문자열 대신 상수/설정 값으로 관리한다. 하드코딩 문자열은 (도입 시) `Constants.cs`로 분리하며, 저장 경로를 설정값으로 관리해두면 향후 macOS/Linux 등 다른 플랫폼으로 확장할 때도 `AppPaths`만 교체하면 된다.
+- 자동 저장은 항상 기본 저장 위치(`library.json`)를 대상으로 한다. "열기"로 다른 JSON 파일을 불러오면 그 내용이 메모리상의 관리 리스트를 대체하고 이후 변경 시 기본 위치에 자동 저장되지만, 열었던 파일 자체가 자동 저장 대상으로 바뀌지는 않는다. "다른 이름으로 저장"은 기본 저장 위치와 무관한 1회성 내보내기다.
+- 리스트 보기의 썸네일/크기/재생횟수/태그/배우/메모 컬럼은 XAML에 고정으로 선언하지 않고, `MainWindow.xaml.cs`의 `BuildManagedColumns()`에서 `GridViewColumn` 객체로 만들어 필드에 보관한 뒤 필요한 것만 `GridView.Columns`에 추가/제거한다 (헤더 우클릭 컬럼 선택 기능을 위함). 파일명 컬럼만 항상 표시되는 고정 컬럼으로 XAML에 남겨둔다. 태그/크기/재생횟수/썸네일 컬럼의 `CellTemplate`은 각각 `Window.Resources`의 `TagsCellTemplate`/`SizeCellTemplate`/`PlayCountCellTemplate`/`HasThumbnailCellTemplate`을 코드에서 참조해서 재사용한다.
+- 더블클릭 재생 범위는 리스트 보기/아이콘 보기가 서로 다르다 (**구현 완료**). 아이콘 보기는 파일명 텍스트에만 `MouseLeftButtonDown` + `e.ClickCount == 2` 검사로 구현한다(`FileNameCell_MouseLeftButtonDown`). 리스트 보기는 행 전체에서 인식되도록 `ListViewItem`의 `ItemContainerStyle`에 `EventSetter Event="MouseDoubleClick"`(`ManagedListRow_MouseDoubleClick`)을 건다 — 이 경우 파일명 셀에는 더 이상 별도 클릭 핸들러를 걸지 않는다(중복 재생/재생횟수 이중 증가 방지).
+- F1(속성)/F2(이름변경)/Del(삭제/제거)/Ctrl+S(저장) 단축키는 `MainWindow`의 `PreviewKeyDown`에서 전역으로 처리하고, 기존 `PropertiesManaged_Click`/`RenameManaged_Click`/`RemoveFromManagedList_Click`/`SaveNow_Click` 핸들러를 그대로 호출한다 (새 로직을 만들지 않음 — 버튼/메뉴/우클릭 메뉴/단축키가 모두 같은 핸들러를 공유). Del만 예외적으로 `e.OriginalSource is not TextBox` 가드가 있다 (텍스트 상자에서 글자를 지울 때 항목이 삭제되지 않도록).
+- 컬럼 표시 상태는 `ApplyVisibleColumns(keys)`(GridView에 반영 + 컬럼 선택 팝업 체크박스 동기화)와 `GetVisibleColumnKeys()`(현재 GridView 상태를 키 목록으로 추출, 저장용) 한 쌍으로 관리한다. 컬럼을 하나 더 추가할 때는 두 메서드와 `ColumnToggle_Click`의 `switch`, 컬럼 선택 팝업의 체크박스를 함께 갱신해야 한다. 파일명보다 앞에 표시해야 하는 컬럼(현재는 썸네일 컬럼)은 `SetColumnVisible(gridView, column, visible, insertAtStart: true)`처럼 `insertAtStart` 인자를 `true`로 넘겨 `GridView.Columns.Insert(0, column)`으로 맨 앞에 삽입한다. 나머지 컬럼은 `insertAtStart` 생략(기본값 `false`, `Columns.Add`).
+- 리스트 보기에서 태그 칩 영역 클릭으로 속성 창을 여는 것도 같은 패턴이다 — 헤더의 좌클릭(정렬)/우클릭(필터)과는 별개로, 행(item)의 태그 셀 클릭은 항상 `PropertiesWindow`를 연다.
+- 관리 리스트 행의 우클릭 팝업 메뉴(`ContextMenu`)는 `Window.Resources`에 `x:Key="ManagedItemContextMenu"`로 한 번만 선언하고, 리스트 보기(`ListView`)/아이콘 보기(`ListBox`) 양쪽의 `ItemContainerStyle`에서 `StaticResource`로 공유한다 (`ItemContainerStyle`의 `Setter.Value`에 `ContextMenu`를 인라인으로 직접 작성하면 XAML 컴파일러가 내부 `MenuItem`의 `Click` 핸들러를 엉뚱한 상위 요소에 연결하는 컴파일 오류가 발생했음 — 반드시 리소스로 분리해서 참조할 것).
+- 비동기 메서드는 이름에 `Async` 접미사를 붙인다 (예: `LoadVideoFilesAsync`).
+- 파일 경로 조합은 문자열 연결 대신 `Path.Combine`을 사용한다.
+
+## 오류 처리 (이 영역 관련)
+
+- 재생하려는 파일이 존재하지 않는 경우 → 재생 실패 메시지, 관리 리스트 항목은 유지
+- 파일/폴더 접근 권한이 없는 경우 → 오류 메시지
+
+전체적인 오류 처리 정책(시작 시 로딩 실패 단계별 처리 등)은 [공통 관리](common-management.md)의 "오류 처리" 절 참고.

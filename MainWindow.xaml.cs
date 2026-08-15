@@ -684,7 +684,11 @@ public partial class MainWindow : Window
     {
         ScheduleAutoSave();
 
-        if (!_suppressAutoSave)
+        // 전체/썸네일/제거됨 개수는 HasThumbnail·IsValid에만 좌우되므로, 이 둘이 바뀔 때만 다시 계산한다 —
+        // 예전에는 어떤 속성이 바뀌든(재생횟수 증가, 이름 변경, 태그/배우 편집 등) 매번 전체 항목을 3번 훑어서
+        // 라이브러리가 커질수록(2900개+) 매 변경마다 불필요한 비용이 컸다(배우/시리즈 동기화처럼 여러 항목을
+        // 한꺼번에 바꾸는 경우 특히 체감됨).
+        if (!_suppressAutoSave && e.PropertyName is nameof(ManagedVideoItem.HasThumbnail) or nameof(ManagedVideoItem.IsValid))
         {
             UpdateManagedCountDisplay();
         }
