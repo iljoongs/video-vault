@@ -31,6 +31,7 @@ public class ManagedVideoItem : INotifyPropertyChanged
             {
                 _fileName = value;
                 OnPropertyChanged(nameof(FileName));
+                OnPropertyChanged(nameof(ProductCode));
             }
         }
     }
@@ -242,6 +243,10 @@ public class ManagedVideoItem : INotifyPropertyChanged
     /// <summary>파일이 들어있는 폴더의 마지막 폴더명만(전체 경로가 아님). 예: "...\쿠로카와 사리나\a.mp4" → "쿠로카와 사리나".</summary>
     [JsonIgnore]
     public string FolderName => GetLastFolderName(FullPath);
+
+    /// <summary>품번: 파일명에서 확장자만 뺀 값. 사용자가 직접 수정하는 <see cref="Code"/>와 달리 항상 파일명에서 그대로 계산된다(속성 창의 "품번:" 표시와 동일한 규칙).</summary>
+    [JsonIgnore]
+    public string ProductCode => Path.GetFileNameWithoutExtension(FileName);
 
     [JsonIgnore]
     public string TagsSortKey => Tags.Count == 0

@@ -19,7 +19,12 @@ namespace VideoVault;
 /// </remarks>
 public static class ImageLoadHelper
 {
-    public static BitmapImage? Load(string? path)
+    /// <summary>
+    /// <paramref name="decodePixelWidth"/>를 지정하면 그 너비로만 디코딩한다(세로는 원본 비율에 맞춰 자동 계산됨).
+    /// 화면에 작게 표시될 이미지(예: 아이콘 보기 카드)를 원본 해상도 그대로 디코딩하는 비용을 줄이기 위한 것 —
+    /// 지정하지 않으면 예전과 동일하게 원본 해상도 그대로 디코딩한다.
+    /// </summary>
+    public static BitmapImage? Load(string? path, int? decodePixelWidth = null)
     {
         if (string.IsNullOrEmpty(path) || !File.Exists(path))
         {
@@ -30,6 +35,11 @@ public static class ImageLoadHelper
         bitmap.BeginInit();
         bitmap.CacheOption = BitmapCacheOption.OnLoad;
         bitmap.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
+        if (decodePixelWidth is { } width)
+        {
+            bitmap.DecodePixelWidth = width;
+        }
+
         bitmap.UriSource = new Uri(path);
         bitmap.EndInit();
         bitmap.Freeze();

@@ -201,6 +201,10 @@ public partial class SeriesManagerWindow : Window
             }
         }
 
+        // 품번은 시리즈 하나에만 속해야 한다 — 어느 시리즈를 보고 있든(또는 아무것도 선택하지 않았든) 매번
+        // 전체 시리즈를 대상으로 중복을 정리해서, 창을 열자마자도 기존에 쌓인 중복이 즉시 해소되도록 한다.
+        SeriesCreditSync.RemoveDuplicateCreditsAcrossSeries(_masterSeries, _managedItems);
+
         if (series is null)
         {
             CreditsList.ItemsSource = null;
@@ -290,6 +294,32 @@ public partial class SeriesManagerWindow : Window
         RefreshCreditsPanel();
     }
 
+    /// <summary>Credits 목록에 텍스트를 드래그 앤 드롭하면 그 텍스트를 품번으로 바로 추가한다(2026-08-15 추가) —
+    /// "작품 추가" 대화상자를 거치지 않는 지름길. `AddCreditWindow`의 품번 정규화 규칙(소문자, 앞뒤 공백 제거)을 그대로 따른다.</summary>
+    private void CreditsList_DragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = e.Data.GetDataPresent(DataFormats.Text) ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void CreditsList_Drop(object sender, DragEventArgs e)
+    {
+        var series = SelectedSeries;
+        if (series is null || e.Data.GetData(DataFormats.Text) is not string text)
+        {
+            return;
+        }
+
+        var code = text.Trim().ToLowerInvariant();
+        if (code.Length == 0)
+        {
+            return;
+        }
+
+        AddCreditToSeries(series, code);
+        e.Handled = true;
+    }
+
     /// <summary>품번(Credit) 칩을 클릭하면 관리 리스트에서 일치하는 항목의 속성 창을 연다. 일치하는 파일이 없으면 안내만 표시한다.</summary>
     private void CreditChip_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
@@ -364,6 +394,30 @@ public partial class SeriesManagerWindow : Window
 
         e.Handled = true;
     }
+
+    /// <summary>품번(Credit) 칩에 마우스를 올리면 관리 리스트에서 일치하는 항목의 썸네일을 팝업으로 미리 보여준다
+    /// (2026-08-16 추가). 일치하는 파일이 없거나 썸네일이 없으면 조용히 아무 반응도 하지 않는다.</summary>
+    private void CreditChip_MouseEnter(object sender, MouseEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: string code } chip)
+        {
+            return;
+        }
+
+        var match = _managedItems.FirstOrDefault(m =>
+            string.Equals(Path.GetFileNameWithoutExtension(m.FileName), code, StringComparison.OrdinalIgnoreCase));
+
+        if (match is null || !match.HasThumbnail)
+        {
+            return;
+        }
+
+        CreditThumbnailImage.Source = ImageLoadHelper.Load(match.ThumbnailPath, 180);
+        CreditThumbnailPopup.PlacementTarget = chip;
+        CreditThumbnailPopup.IsOpen = true;
+    }
+
+    private void CreditChip_MouseLeave(object sender, MouseEventArgs e) => CreditThumbnailPopup.IsOpen = false;
 
     private static string? NormalizeName(string? raw)
     {

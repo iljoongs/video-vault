@@ -171,7 +171,13 @@
                 <!-- 저장/열기/다른 이름으로 저장 버튼은 삭제되었지만 기능은 유지된다 (파일 메뉴 + Ctrl+S) -->
                 <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
                     <RadioButton x:Name="ListViewModeRadio" Content="리스트 보기" GroupName="ViewMode" IsChecked="True" VerticalAlignment="Center" Margin="0,0,10,0" Checked="ViewMode_Changed"/>
-                    <RadioButton x:Name="IconViewModeRadio" Content="아이콘 보기" GroupName="ViewMode" VerticalAlignment="Center" Margin="0,0,15,0" Checked="ViewMode_Changed"/>
+                    <RadioButton x:Name="IconViewModeRadio" Content="아이콘 보기" GroupName="ViewMode" VerticalAlignment="Center" Margin="0,0,5,0" Checked="ViewMode_Changed"/>
+                    <ComboBox x:Name="IconSizeComboBox" Width="110" Margin="0,0,15,0" SelectedIndex="2" SelectionChanged="IconSizeComboBox_SelectionChanged">
+                        <ComboBoxItem Content="아주 큰 아이콘"/>
+                        <ComboBoxItem Content="큰 아이콘"/>
+                        <ComboBoxItem Content="보통 아이콘"/>
+                        <ComboBoxItem Content="작은 아이콘"/>
+                    </ComboBox>
                     <CheckBox x:Name="ShowRemovedItemsCheckBox" Content="제거된 항목도 표시" VerticalAlignment="Center" Checked="ShowRemovedItemsCheckBox_Changed" Unchecked="ShowRemovedItemsCheckBox_Changed"/>
                 </StackPanel>
 
@@ -244,7 +250,7 @@
                     </ListView>
 
                     <ListBox x:Name="ManagedIconView" Visibility="Collapsed" SelectionMode="Extended" SelectionChanged="ManagedSelection_Changed"
-                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled" MouseRightButtonUp="ManagedIconView_MouseRightButtonUp">
                         <ListBox.ItemContainerStyle>
                             <Style TargetType="ListBoxItem">
                                 <EventSetter Event="PreviewMouseRightButtonDown" Handler="ManagedIconItem_PreviewMouseRightButtonDown"/>
@@ -270,12 +276,15 @@
                         </ListBox.ItemsPanel>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <Border Width="160" Height="225" Margin="5" BorderBrush="LightGray" BorderThickness="1" Padding="5">
+                                <Border Width="{Binding Source={x:Static local:IconSizeSettings.Current}, Path=CardWidth}"
+                                        Height="{Binding Source={x:Static local:IconSizeSettings.Current}, Path=CardHeight}"
+                                        Margin="5" BorderBrush="LightGray" BorderThickness="1" Padding="5">
                                     <StackPanel>
-                                        <Border Width="130" Height="95" Background="#F0F0F0" Cursor="Hand"
-                                                ToolTip="클릭하여 썸네일 이미지 지정" MouseLeftButtonUp="ThumbnailArea_Click">
+                                        <Border Width="{Binding Source={x:Static local:IconSizeSettings.Current}, Path=ThumbnailWidth}"
+                                                Height="{Binding Source={x:Static local:IconSizeSettings.Current}, Path=ThumbnailHeight}"
+                                                Background="#F0F0F0">
                                             <Grid>
-                                                <Image Source="{Binding ThumbnailPath, Converter={StaticResource ThumbnailPathConverter}}" Stretch="UniformToFill">
+                                                <Image Source="{Binding ThumbnailPath, Converter={StaticResource ThumbnailPathConverter}, ConverterParameter=240}" Stretch="UniformToFill">
                                                     <Image.Style>
                                                         <Style TargetType="Image">
                                                             <Setter Property="Visibility" Value="Collapsed"/>
@@ -287,7 +296,7 @@
                                                         </Style>
                                                     </Image.Style>
                                                 </Image>
-                                                <TextBlock Text="🎬" FontSize="36" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="🎬" FontSize="{Binding Source={x:Static local:IconSizeSettings.Current}, Path=FallbackIconFontSize}" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
                                                             <Setter Property="Visibility" Value="Visible"/>
@@ -301,9 +310,35 @@
                                                 </TextBlock>
                                             </Grid>
                                         </Border>
-                                        <TextBlock Text="{Binding FileName}" TextWrapping="Wrap" TextAlignment="Center" FontSize="11" Margin="0,5,0,0"
+                                        <TextBlock Text="{Binding ProductCode}" TextWrapping="Wrap" TextAlignment="Center"
+                                                   FontSize="{Binding Source={x:Static local:IconSizeSettings.Current}, Path=FileNameFontSize}" Margin="0,5,0,0"
                                                    ToolTip="더블클릭하여 재생" MouseLeftButtonDown="FileNameCell_MouseLeftButtonDown"/>
-                                        <TextBlock Text="{Binding PlayCount, StringFormat='재생 {0}회'}" FontSize="10" Foreground="Gray" HorizontalAlignment="Center"/>
+                                        <TextBlock Text="{Binding SizeDisplay}"
+                                                   FontSize="{Binding Source={x:Static local:IconSizeSettings.Current}, Path=PlayCountFontSize}" Foreground="Gray" HorizontalAlignment="Center">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Source={x:Static local:IconCardFieldsSettings.Current}, Path=ShowSize}" Value="False">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding PlayCount, StringFormat='재생 {0}회'}"
+                                                   FontSize="{Binding Source={x:Static local:IconSizeSettings.Current}, Path=PlayCountFontSize}" Foreground="Gray" HorizontalAlignment="Center">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Source={x:Static local:IconCardFieldsSettings.Current}, Path=ShowPlayCount}" Value="False">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
                                         <ItemsControl ItemsSource="{Binding Tags}" Margin="0,4,0,0">
                                             <ItemsControl.ItemsPanel>
                                                 <ItemsPanelTemplate>
@@ -313,11 +348,34 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <Border Background="#E0E0E0" CornerRadius="6" Padding="4,1" Margin="1">
-                                                        <TextBlock Text="{Binding}" FontSize="9"/>
+                                                        <TextBlock Text="{Binding}" FontSize="{Binding Source={x:Static local:IconSizeSettings.Current}, Path=TagFontSize}"/>
                                                     </Border>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
+                                            <ItemsControl.Style>
+                                                <Style TargetType="ItemsControl">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Source={x:Static local:IconCardFieldsSettings.Current}, Path=ShowTags}" Value="False">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ItemsControl.Style>
                                         </ItemsControl>
+                                        <TextBlock Text="{Binding Series}" TextWrapping="Wrap" TextAlignment="Center"
+                                                   FontSize="{Binding Source={x:Static local:IconSizeSettings.Current}, Path=TagFontSize}" Foreground="Gray" HorizontalAlignment="Center" Margin="0,2,0,0">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Source={x:Static local:IconCardFieldsSettings.Current}, Path=ShowSeries}" Value="False">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
                                     </StackPanel>
                                 </Border>
                             </DataTemplate>
@@ -383,6 +441,19 @@
                                 <CheckBox x:Name="CodeColumnCheckBox" Content="코드" IsChecked="False" Margin="0,2" Click="ColumnToggle_Click" Tag="Code"/>
                                 <CheckBox x:Name="SeriesColumnCheckBox" Content="시리즈" IsChecked="False" Margin="0,2" Click="ColumnToggle_Click" Tag="Series"/>
                                 <CheckBox x:Name="ReleaseDateColumnCheckBox" Content="출시일" IsChecked="False" Margin="0,2" Click="ColumnToggle_Click" Tag="ReleaseDate"/>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+
+                    <!-- 아이콘 보기 빈 공간 우클릭: 카드에 표시할 정보 선택 팝업 -->
+                    <Popup x:Name="IconInfoChooserPopup" StaysOpen="False" Placement="MousePoint">
+                        <Border Background="White" BorderBrush="Gray" BorderThickness="1" Padding="10">
+                            <StackPanel Width="140">
+                                <TextBlock Text="표시할 정보" FontWeight="Bold" Margin="0,0,0,5"/>
+                                <CheckBox x:Name="IconSizeFieldCheckBox" Content="크기" IsChecked="False" Margin="0,2" Click="IconFieldToggle_Click" Tag="Size"/>
+                                <CheckBox x:Name="IconPlayCountFieldCheckBox" Content="재생횟수" IsChecked="True" Margin="0,2" Click="IconFieldToggle_Click" Tag="PlayCount"/>
+                                <CheckBox x:Name="IconTagsFieldCheckBox" Content="태그" IsChecked="True" Margin="0,2" Click="IconFieldToggle_Click" Tag="Tags"/>
+                                <CheckBox x:Name="IconSeriesFieldCheckBox" Content="시리즈" IsChecked="False" Margin="0,2" Click="IconFieldToggle_Click" Tag="Series"/>
                             </StackPanel>
                         </Border>
                     </Popup>

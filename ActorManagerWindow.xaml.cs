@@ -497,6 +497,32 @@ public partial class ActorManagerWindow : Window
         RefreshCreditsPanel(actor);
     }
 
+    /// <summary>Credits 목록에 텍스트를 드래그 앤 드롭하면 그 텍스트를 품번으로 바로 추가한다(2026-08-15 추가) —
+    /// "작품 추가" 대화상자를 거치지 않는 지름길. `AddCreditWindow`의 품번 정규화 규칙(소문자, 앞뒤 공백 제거)을 그대로 따른다.</summary>
+    private void CreditsList_DragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = e.Data.GetDataPresent(DataFormats.Text) ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void CreditsList_Drop(object sender, DragEventArgs e)
+    {
+        var actor = SelectedActor;
+        if (actor is null || e.Data.GetData(DataFormats.Text) is not string text)
+        {
+            return;
+        }
+
+        var code = text.Trim().ToLowerInvariant();
+        if (code.Length == 0)
+        {
+            return;
+        }
+
+        AddCreditToActor(actor, code);
+        e.Handled = true;
+    }
+
     /// <summary>품명(Credit) 칩을 클릭하면 관리 리스트에서 일치하는 항목의 속성 창을 연다. 일치하는 파일이 없으면 안내만 표시한다.</summary>
     private void CreditChip_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
@@ -633,6 +659,30 @@ public partial class ActorManagerWindow : Window
             // 부가 정리이므로 실패해도 무시한다.
         }
     }
+
+    /// <summary>품번(Credit) 칩에 마우스를 올리면 관리 리스트에서 일치하는 항목의 썸네일을 팝업으로 미리 보여준다
+    /// (2026-08-16 추가). 일치하는 파일이 없거나 썸네일이 없으면 조용히 아무 반응도 하지 않는다.</summary>
+    private void CreditChip_MouseEnter(object sender, MouseEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: string code } chip)
+        {
+            return;
+        }
+
+        var match = _managedItems.FirstOrDefault(m =>
+            string.Equals(Path.GetFileNameWithoutExtension(m.FileName), code, StringComparison.OrdinalIgnoreCase));
+
+        if (match is null || !match.HasThumbnail)
+        {
+            return;
+        }
+
+        CreditThumbnailImage.Source = ImageLoadHelper.Load(match.ThumbnailPath, 180);
+        CreditThumbnailPopup.PlacementTarget = chip;
+        CreditThumbnailPopup.IsOpen = true;
+    }
+
+    private void CreditChip_MouseLeave(object sender, MouseEventArgs e) => CreditThumbnailPopup.IsOpen = false;
 
     private static string SanitizeFileName(string name)
     {

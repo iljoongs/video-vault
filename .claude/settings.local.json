@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(winget install *)",
-      "Bash(dotnet build *)"
+      "Bash(dotnet build *)",
+      "Read(//c/Users/iljoo/AppData/Local/VideoVault/**)"
     ]
   }
 }

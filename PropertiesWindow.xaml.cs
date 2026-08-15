@@ -462,19 +462,31 @@ public partial class PropertiesWindow : Window
 
     private void RefreshThumbnailPreview()
     {
-        ThumbnailPathText.Text = _item.ThumbnailPath ?? "지정된 썸네일 없음";
-
         if (_item.HasThumbnail)
         {
+            ThumbnailPathText.Text = $"{_item.ThumbnailPath} ({BuildThumbnailSizeInfo()})";
             ThumbnailImage.Source = ImageLoadHelper.Load(_item.ThumbnailPath);
             ThumbnailImage.Visibility = Visibility.Visible;
             ThumbnailFallbackIcon.Visibility = Visibility.Collapsed;
         }
         else
         {
+            ThumbnailPathText.Text = "지정된 썸네일 없음";
             ThumbnailImage.Visibility = Visibility.Collapsed;
             ThumbnailFallbackIcon.Visibility = Visibility.Visible;
         }
+    }
+
+    private string BuildThumbnailSizeInfo()
+    {
+        var thumbnailSize = _item.ThumbnailPath is not null && File.Exists(_item.ThumbnailPath)
+            ? FormatUtil.FormatSize(new FileInfo(_item.ThumbnailPath).Length)
+            : "-";
+        var originalSize = _item.ThumbnailOriginalPath is not null && File.Exists(_item.ThumbnailOriginalPath)
+            ? FormatUtil.FormatSize(new FileInfo(_item.ThumbnailOriginalPath).Length)
+            : "-";
+
+        return $"{thumbnailSize}, {originalSize}";
     }
 
     private void AddThumbnailButton_Click(object sender, RoutedEventArgs e)

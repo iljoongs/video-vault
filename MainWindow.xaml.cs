@@ -579,6 +579,25 @@ public partial class MainWindow : Window
         }
 
         WindowPositionMemory.LoadFrom(settings.WindowPositions);
+
+        var iconSize = Enum.TryParse<IconSize>(settings.IconSizePreset, out var parsedIconSize) ? parsedIconSize : IconSize.Normal;
+        IconSizeSettings.Current.Apply(iconSize);
+        IconSizeComboBox.SelectedIndex = iconSize switch
+        {
+            IconSize.ExtraLarge => 0,
+            IconSize.Large => 1,
+            IconSize.Small => 3,
+            _ => 2,
+        };
+
+        IconCardFieldsSettings.Current.ShowSize = settings.IconShowSize;
+        IconCardFieldsSettings.Current.ShowPlayCount = settings.IconShowPlayCount;
+        IconCardFieldsSettings.Current.ShowTags = settings.IconShowTags;
+        IconCardFieldsSettings.Current.ShowSeries = settings.IconShowSeries;
+        IconSizeFieldCheckBox.IsChecked = settings.IconShowSize;
+        IconPlayCountFieldCheckBox.IsChecked = settings.IconShowPlayCount;
+        IconTagsFieldCheckBox.IsChecked = settings.IconShowTags;
+        IconSeriesFieldCheckBox.IsChecked = settings.IconShowSeries;
     }
 
     /// <summary>
@@ -686,6 +705,16 @@ public partial class MainWindow : Window
         if (!_suppressAutoSave && e.PropertyName is nameof(ManagedVideoItem.Tags) or nameof(ManagedVideoItem.Actors))
         {
             _managedView.Refresh();
+        }
+
+        // 파일명이 바뀌면 정렬 순서상 위치도 바뀐다(라이브 정렬) — F2/우클릭 "이름변경"뿐 아니라 속성 창의
+        // 파일명 텍스트 상자 편집 등 어느 경로로 바뀌었든, 그 항목이 지금 선택돼 있으면 바뀐 위치로 따라간다.
+        // 라이브 정렬 재배치 직후 곧바로 호출하면 레이아웃이 아직 갱신되지 않아 ScrollIntoView가 조용히
+        // 아무 효과가 없으므로(재현 확인함), 레이아웃이 반영된 뒤로 미룬다.
+        if (!_suppressAutoSave && e.PropertyName == nameof(ManagedVideoItem.FileName) &&
+            sender is ManagedVideoItem renamedItem && ReferenceEquals(sender, GetSelectedManagedItem()))
+        {
+            Dispatcher.BeginInvoke(new Action(() => SelectAndScrollToManagedItem(renamedItem)), DispatcherPriority.ContextIdle);
         }
     }
 
@@ -887,6 +916,11 @@ public partial class MainWindow : Window
                 ColumnWidths = GetColumnWidths(),
                 SelectedItemPath = GetSelectedManagedItem()?.FullPath,
                 WindowPositions = WindowPositionMemory.ToDictionary(),
+                IconSizePreset = IconSizeSettings.Current.Preset.ToString(),
+                IconShowSize = IconCardFieldsSettings.Current.ShowSize,
+                IconShowPlayCount = IconCardFieldsSettings.Current.ShowPlayCount,
+                IconShowTags = IconCardFieldsSettings.Current.ShowTags,
+                IconShowSeries = IconCardFieldsSettings.Current.ShowSeries,
             };
 
             SettingsRepository.Save(AppPaths.SettingsPath, settings);
@@ -1142,9 +1176,24 @@ public partial class MainWindow : Window
         _sortProperty = propertyName;
         _sortAscending = ascending;
 
-        _managedView.SortDescriptions.Clear();
-        _managedView.SortDescriptions.Add(new SortDescription(
-            propertyName, ascending ? ListSortDirection.Ascending : ListSortDirection.Descending));
+        var listView = (ListCollectionView)_managedView;
+
+        // 파일명은 문자와 숫자가 섞여있어(예: "abp-2"/"abp-10") 기본 사전식 비교로는 "abp-10"이
+        // "abp-2"보다 앞에 오는 문제가 있다. SortDescriptions(기본 비교)와 CustomSort(커스텀 비교)는
+        // ListCollectionView에서 동시에 쓸 수 없어(먼저 비운 뒤 다른 쪽을 설정해야 한다), 파일명일 때만
+        // CustomSort로 전환하고 나머지 컬럼은 기존처럼 SortDescriptions를 그대로 쓴다.
+        if (propertyName == nameof(ManagedVideoItem.FileName))
+        {
+            listView.SortDescriptions.Clear();
+            listView.CustomSort = ascending ? FileNameNaturalComparer.Ascending : FileNameNaturalComparer.Descending;
+        }
+        else
+        {
+            listView.CustomSort = null;
+            listView.SortDescriptions.Clear();
+            listView.SortDescriptions.Add(new SortDescription(
+                propertyName, ascending ? ListSortDirection.Ascending : ListSortDirection.Descending));
+        }
 
         ScheduleSettingsAutoSave();
     }
@@ -1221,6 +1270,44 @@ public partial class MainWindow : Window
         }
 
         return null;
+    }
+
+    // ===================== 관리 리스트: 아이콘 보기 빈 공간 우클릭 - 표시할 정보 선택 =====================
+
+    private void ManagedIconView_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (FindAncestor<ListBoxItem>(e.OriginalSource as DependencyObject) is not null)
+        {
+            return;
+        }
+
+        IconInfoChooserPopup.IsOpen = true;
+        e.Handled = true;
+    }
+
+    private void IconFieldToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not CheckBox { Tag: string fieldKey } checkBox)
+        {
+            return;
+        }
+
+        var isChecked = checkBox.IsChecked == true;
+        switch (fieldKey)
+        {
+            case "Size":
+                IconCardFieldsSettings.Current.ShowSize = isChecked;
+                break;
+            case "PlayCount":
+                IconCardFieldsSettings.Current.ShowPlayCount = isChecked;
+                break;
+            case "Tags":
+                IconCardFieldsSettings.Current.ShowTags = isChecked;
+                break;
+            case "Series":
+                IconCardFieldsSettings.Current.ShowSeries = isChecked;
+                break;
+        }
     }
 
     private void ShowTagFilterPopup(UIElement target)
@@ -1361,6 +1448,24 @@ public partial class MainWindow : Window
         ScheduleSettingsAutoSave();
     }
 
+    private void IconSizeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsInitialized)
+        {
+            return;
+        }
+
+        var size = IconSizeComboBox.SelectedIndex switch
+        {
+            0 => IconSize.ExtraLarge,
+            1 => IconSize.Large,
+            3 => IconSize.Small,
+            _ => IconSize.Normal,
+        };
+
+        IconSizeSettings.Current.Apply(size);
+    }
+
     private void ListViewModeMenuItem_Click(object sender, RoutedEventArgs e) => ListViewModeRadio.IsChecked = true;
 
     private void IconViewModeMenuItem_Click(object sender, RoutedEventArgs e) => IconViewModeRadio.IsChecked = true;
@@ -1449,27 +1554,6 @@ public partial class MainWindow : Window
 
     // ===================== 관리 리스트: 썸네일 =====================
 
-    private void ThumbnailArea_Click(object sender, MouseButtonEventArgs e)
-    {
-        if (sender is not FrameworkElement { DataContext: ManagedVideoItem item })
-        {
-            return;
-        }
-
-        var dialog = new OpenFileDialog
-        {
-            Title = "썸네일 이미지 선택",
-            Filter = "이미지 파일 (*.jpg;*.jpeg;*.png;*.bmp;*.gif)|*.jpg;*.jpeg;*.png;*.bmp;*.gif|모든 파일 (*.*)|*.*",
-        };
-
-        if (dialog.ShowDialog() == true)
-        {
-            ApplyThumbnail(item, dialog.FileName);
-        }
-
-        e.Handled = true;
-    }
-
     /// <summary>메인창 썸네일 뷰어 클릭 시 원본 이미지 창을 연다.</summary>
     private void ThumbnailViewer_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) =>
         OriginalImageWindow.ShowFor(this, GetSelectedManagedItem());
@@ -1556,6 +1640,8 @@ public partial class MainWindow : Window
             return;
         }
 
+        // 바뀐 위치로 스크롤해서 따라가는 것은 ManagedItem_PropertyChanged(FileName 변경 감지)가 처리한다 —
+        // F2/우클릭 이 경로든 속성 창의 파일명 편집이든 공유하는 동일한 로직이다.
         RenameHelper.TryRenameManagedItem(this, item, _masterActors, _masterSeries);
     }
 

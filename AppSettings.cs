@@ -40,4 +40,15 @@ public class AppSettings
     public double? MainWindowHeight { get; set; }
     public double? MainWindowLeft { get; set; }
     public double? MainWindowTop { get; set; }
+
+    /// <summary>아이콘 보기 카드 크기 프리셋(2026-08-12 추가). <see cref="IconSize"/> enum 이름을 문자열로 저장하며,
+    /// 값이 없거나 인식할 수 없으면(구버전 settings.json 등) "Normal"이 적용된다.</summary>
+    public string? IconSizePreset { get; set; }
+
+    /// <summary>아이콘 보기 카드에 표시할 정보(2026-08-12 추가) — 기본값은 재생횟수/태그 켜짐, 크기/시리즈 꺼짐
+    /// (예전부터의 카드 모습과 동일, <see cref="IconCardFieldsSettings"/> 참고).</summary>
+    public bool IconShowSize { get; set; }
+    public bool IconShowPlayCount { get; set; } = true;
+    public bool IconShowTags { get; set; } = true;
+    public bool IconShowSeries { get; set; }
 }

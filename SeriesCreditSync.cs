@@ -49,4 +49,54 @@ public static class SeriesCreditSync
             item.Series = matchingSeries.Name;
         }
     }
+
+    /// <summary>
+    /// 품번은 시리즈 하나에만 속해야 하는데, Credits를 수동으로 관리하다 보면 같은 품번이 둘 이상의 시리즈에
+    /// 동시에 남아있는 경우가 생길 수 있다(예: 파일의 Series를 다른 시리즈로 바꿨는데 예전 시리즈의 Credits에는
+    /// 옛 지정이 그대로 남아있던 경우). 이를 정리한다(2026-08-16 추가) — 우선순위는 다음과 같다:
+    /// ① 그 품번의 실제 파일이 있고 <see cref="ManagedVideoItem.Series"/>가 지정되어 있으면, 그 시리즈가
+    ///    "최근에 업데이트된" 것으로 보고 그 시리즈만 남기고 나머지에서 제거한다.
+    /// ② 실제 파일이 없거나 Series가 비어있어 판단 근거가 없으면(예: 두 시리즈 모두 파일 없이 수동 등록만 된
+    ///    경우), 이름 기준 오름차순으로 가장 앞선 시리즈를 남기고 나머지에서 제거한다(결정적 기본 규칙).
+    /// </summary>
+    public static void RemoveDuplicateCreditsAcrossSeries(IEnumerable<SeriesItem> masterSeries, IEnumerable<ManagedVideoItem> managedItems)
+    {
+        var codeToItemSeries = managedItems
+            .Where(m => !string.IsNullOrEmpty(m.Series))
+            .GroupBy(m => Path.GetFileNameWithoutExtension(m.FileName), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().Series, StringComparer.OrdinalIgnoreCase);
+
+        var codeToSeriesList = new Dictionary<string, List<SeriesItem>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var series in masterSeries)
+        {
+            foreach (var code in series.Credits)
+            {
+                if (!codeToSeriesList.TryGetValue(code, out var seriesWithCode))
+                {
+                    seriesWithCode = new List<SeriesItem>();
+                    codeToSeriesList[code] = seriesWithCode;
+                }
+
+                seriesWithCode.Add(series);
+            }
+        }
+
+        foreach (var (code, seriesWithCode) in codeToSeriesList)
+        {
+            if (seriesWithCode.Count < 2)
+            {
+                continue;
+            }
+
+            var winner = codeToItemSeries.TryGetValue(code, out var itemSeriesName)
+                ? seriesWithCode.FirstOrDefault(s => string.Equals(s.Name, itemSeriesName, StringComparison.OrdinalIgnoreCase))
+                    ?? seriesWithCode.OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase).First()
+                : seriesWithCode.OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase).First();
+
+            foreach (var loser in seriesWithCode.Where(s => !ReferenceEquals(s, winner)))
+            {
+                loser.SetCredits(loser.Credits.Where(c => !string.Equals(c, code, StringComparison.OrdinalIgnoreCase)).ToList());
+            }
+        }
+    }
 }

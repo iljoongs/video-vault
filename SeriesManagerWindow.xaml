@@ -42,8 +42,15 @@
             <RowDefinition Height="Auto"/> <!-- 5: 닫기 -->
         </Grid.RowDefinitions>
 
-        <ListBox x:Name="SeriesListBox" Grid.Row="0" Margin="0,0,0,10" DisplayMemberPath="Name"
-                 SelectionChanged="SeriesListBox_SelectionChanged"/>
+        <ListView x:Name="SeriesListBox" Grid.Row="0" Margin="0,0,0,10"
+                 SelectionChanged="SeriesListBox_SelectionChanged">
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn Header="시리즈 이름" Width="270" DisplayMemberBinding="{Binding Name}"/>
+                    <GridViewColumn Header="작품수" Width="80" DisplayMemberBinding="{Binding Credits.Count}"/>
+                </GridView>
+            </ListView.View>
+        </ListView>
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
             <TextBox x:Name="NewSeriesBox" Width="220" Margin="0,0,5,0"/>
@@ -57,7 +64,8 @@
 
         <TextBlock Grid.Row="3" Text="품번" FontWeight="Bold" Margin="0,0,0,5"/>
 
-        <ScrollViewer Grid.Row="4" VerticalScrollBarVisibility="Auto" Margin="0,0,0,10">
+        <ScrollViewer Grid.Row="4" VerticalScrollBarVisibility="Auto" Margin="0,0,0,10"
+                      AllowDrop="True" DragOver="CreditsList_DragOver" Drop="CreditsList_Drop">
             <ItemsControl x:Name="CreditsList">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -67,13 +75,22 @@
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <Border Style="{StaticResource CreditChipBorderStyle}" Tag="{Binding Code}"
-                                MouseLeftButtonUp="CreditChip_MouseLeftButtonUp" MouseRightButtonUp="CreditChip_MouseRightButtonUp">
+                                MouseLeftButtonUp="CreditChip_MouseLeftButtonUp" MouseRightButtonUp="CreditChip_MouseRightButtonUp"
+                                MouseEnter="CreditChip_MouseEnter" MouseLeave="CreditChip_MouseLeave">
                             <TextBlock Text="{Binding Code}" Style="{StaticResource CreditChipTextStyle}"/>
                         </Border>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
         </ScrollViewer>
+
+        <!-- 품번 칩에 마우스를 올리면 뜨는 썸네일 미리보기 팝업(2026-08-16 추가) — 큰 아이콘 보기 썸네일 크기(180x131)와 동일 -->
+        <Popup x:Name="CreditThumbnailPopup" Placement="Mouse" HorizontalOffset="12" VerticalOffset="12"
+               AllowsTransparency="True" IsHitTestVisible="False" StaysOpen="True">
+            <Border Background="White" BorderBrush="Gray" BorderThickness="1" Padding="2">
+                <Image x:Name="CreditThumbnailImage" Width="180" Height="131" Stretch="Uniform"/>
+            </Border>
+        </Popup>
 
         <Button Grid.Row="5" Content="닫기" Width="80" HorizontalAlignment="Right" Click="Close_Click"/>
     </Grid>
