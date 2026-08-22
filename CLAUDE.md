@@ -18,9 +18,11 @@ C# WPF (.NET 8) 데스크톱 애플리케이션. 동영상 파일을 관리하�
 
 ## 빌드 / 실행
 
+2026-08-22부터 프로젝트 코드가 `src/VideoVault/` 밑으로 이동했다(아래 [프로젝트 구조](#프로젝트-구조) 참고). 저장소 루트의 `video-vault.sln`이 그 프로젝트 하나만 가리키므로, `dotnet build`는 루트에서 인자 없이 그대로 실행하면 된다(같은 폴더에 `.sln`이 하나만 있으면 `dotnet` CLI가 자동으로 찾음). `dotnet run`은 `.sln`으로는 동작하지 않아 프로젝트 경로를 직접 지정해야 한다.
+
 ```
 dotnet build
-dotnet run
+dotnet run --project src/VideoVault
 ```
 
 ## 코드 서명 (로컬 개발용)
@@ -28,7 +30,7 @@ dotnet run
 이 PC는 Windows **Smart App Control(SAC)**이 평가 모드로 켜져 있어서, 서명되지 않은 새 빌드 실행 파일을 "신뢰할 수 없음"으로 판단해 실행을 차단한다(코드 무결성 로그에 "Enterprise signing level requirements" 오류로 나타남 — Defender 위협 탐지 로그는 비어 있어 악성코드 탐지가 아니라 순수 서명/평판 정책임을 확인함). 이를 우회하기 위해 **자체 서명(self-signed) 인증서로 빌드 결과물에 자동 서명**하도록 구성했다 — **구현 완료**.
 
 - **인증서**: `CN=VideoVault Dev Signing` (CurrentUser\My 저장소, 5년 유효). 신뢰를 위해 같은 인증서(공개키)를 `CurrentUser\Root`와 `CurrentUser\TrustedPublisher`에도 등록해뒀다. 개인키는 이 PC의 사용자 계정에만 존재하며 저장소/파일로 커밋하지 않는다.
-- **자동 서명**: `VideoVault.csproj`에 `AfterTargets="Build"` 타겟이 있어, 빌드가 끝날 때마다 `Sign-Build.ps1`이 `$(TargetDir)`의 `.exe`와 `.dll`을 모두 서명한다. 인증서를 찾을 수 없는 다른 PC에서는(예: 다른 개발자의 PC) 오류 없이 조용히 서명을 건너뛴다.
+- **자동 서명**: `src/VideoVault/VideoVault.csproj`에 `AfterTargets="Build"` 타겟이 있어, 빌드가 끝날 때마다 같은 폴더의 `Sign-Build.ps1`이 `$(TargetDir)`의 `.exe`와 `.dll`을 모두 서명한다. 인증서를 찾을 수 없는 다른 PC에서는(예: 다른 개발자의 PC) 오류 없이 조용히 서명을 건너뛴다.
 - **다른 PC에서 설정하려면**: 아래 PowerShell을 관리자 권한 없이 실행하면 된다 (모두 `CurrentUser` 범위, 시스템 전체에는 영향 없음). 생성된 인증서의 Thumbprint 값을 `Sign-Build.ps1`의 `$thumbprint` 변수에 반영해야 한다.
 
   ```powershell
@@ -52,21 +54,45 @@ dotnet run
 
 ## 앱 아이콘
 
-exe 아이콘(탐색기/작업 표시줄)과 `MainWindow` 타이틀바 아이콘 모두 `AppIcon.ico`(2026-08-02 추가, **구현 완료**)를 사용한다.
+exe 아이콘(탐색기/작업 표시줄)과 `MainWindow` 타이틀바 아이콘 모두 `AppIcon.ico`(2026-08-02 추가, **구현 완료**, 2026-08-22 `src/VideoVault/Assets/`로 위치 이동)를 사용한다.
 
-- **원본**: 프로젝트 루트의 `media-player-interface-symbol-svgrepo-com.svg`(재생 버튼이 있는 미디어 플레이어 창 모양 아이콘)를 소스로 만들었다. WPF에 SVG를 직접 아이콘으로 쓰는 기능이 없어(`.ico` 필요), SVG의 `<path>`/`<polygon>` 데이터를 WPF `Geometry.Parse`로 그대로 파싱해(SVG path mini-language와 XAML의 것이 거의 동일해 별도 변환 없이 재사용 가능했음) `DrawingVisual`에 렌더링한 뒤 16/32/48/256px 크기로 각각 `RenderTargetBitmap` + `PngBitmapEncoder`로 PNG를 만들고, 이 PNG들을 담은 `.ico`(PNG-압축 아이콘 항목, Vista 이상에서 지원)를 직접 조립하는 격리된 콘솔 스크립트로 변환했다(외부 SVG 변환 도구 없이 처리, 이 PC에 ImageMagick/Inkscape 등이 없었음). 스크립트 자체는 프로젝트에는 포함하지 않음(1회성 변환용).
+- **원본**: 저장소 루트의 `media-player-interface-symbol-svgrepo-com.svg`(재생 버튼이 있는 미디어 플레이어 창 모양 아이콘, 코드가 아니라서 `src/`로 옮기지 않고 루트에 그대로 둠)를 소스로 만들었다. WPF에 SVG를 직접 아이콘으로 쓰는 기능이 없어(`.ico` 필요), SVG의 `<path>`/`<polygon>` 데이터를 WPF `Geometry.Parse`로 그대로 파싱해(SVG path mini-language와 XAML의 것이 거의 동일해 별도 변환 없이 재사용 가능했음) `DrawingVisual`에 렌더링한 뒤 16/32/48/256px 크기로 각각 `RenderTargetBitmap` + `PngBitmapEncoder`로 PNG를 만들고, 이 PNG들을 담은 `.ico`(PNG-압축 아이콘 항목, Vista 이상에서 지원)를 직접 조립하는 격리된 콘솔 스크립트로 변환했다(외부 SVG 변환 도구 없이 처리, 이 PC에 ImageMagick/Inkscape 등이 없었음). 스크립트 자체는 프로젝트에는 포함하지 않음(1회성 변환용).
 - **적용 위치**:
-  - `VideoVault.csproj`: `<ApplicationIcon>AppIcon.ico</ApplicationIcon>`로 exe 자체의 아이콘(탐색기/작업 표시줄, 앱을 실행하지 않은 상태에서도 보임)을 지정. `<Resource Include="AppIcon.ico" />`로 함께 포함해 런타임에도 참조 가능하게 함.
-  - `MainWindow.xaml`: `Icon="AppIcon.ico"`로 타이틀바/Alt+Tab 아이콘을 지정. 서브 창(`FolderListWindow` 등)은 별도로 지정하지 않았다(자식 창은 보통 별도 작업 표시줄 항목을 갖지 않으므로).
+  - `src/VideoVault/VideoVault.csproj`: `<ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>`로 exe 자체의 아이콘(탐색기/작업 표시줄, 앱을 실행하지 않은 상태에서도 보임)을 지정. `<Resource Include="Assets\AppIcon.ico" />`로 함께 포함해 런타임에도 참조 가능하게 함.
+  - `MainWindow.xaml`: `Icon="Assets/AppIcon.ico"`로 타이틀바/Alt+Tab 아이콘을 지정. 서브 창(`FolderListWindow` 등)은 별도로 지정하지 않았다(자식 창은 보통 별도 작업 표시줄 항목을 갖지 않으므로).
 - **검증**: 빌드된 exe에서 `System.Drawing.Icon.ExtractAssociatedIcon`으로 아이콘을 실제로 추출해 기본 아이콘이 아닌 지정한 미디어 플레이어 아이콘이 임베드되었음을 확인했다.
 
 ## 프로젝트 구조
+
+### 폴더 구조 (요약, 2026-08-22 `src/` 레이아웃으로 재구성)
+
+다른 프로젝트(`text-readers` 등)와 형태를 맞추기 위해 모든 소스 코드를 `src/VideoVault/` 밑으로 옮겼다. `CLAUDE.md`/`doc/`처럼 코드가 아닌 것은 저장소 루트에 그대로 둔다. 아래 "현재 구현된 파일" 목록의 파일명은 **모두 `src/VideoVault/` 기준 상대경로**다(명시적으로 다른 경로를 적은 항목 제외).
+
+```
+video-vault/
+├── CLAUDE.md
+├── video-vault.sln
+├── .gitignore
+├── media-player-interface-symbol-svgrepo-com.svg   # 앱 아이콘 원본 SVG(코드 아님, 루트 유지)
+├── doc/                       # 기능별 상세 문서 → 아래 "문서 구성" 참고
+└── src/
+    └── VideoVault/            # WPF 프로젝트 본체
+        ├── VideoVault.csproj
+        ├── Sign-Build.ps1
+        ├── Assets/
+        │   └── AppIcon.ico
+        ├── Models/            # 현재 비어있음 — MVVM 전환 시 데이터 모델 이동 예정, .gitkeep만 존재
+        ├── Services/          # 현재 비어있음 — 계획된 서비스 계층, .gitkeep만 존재 → 아래 "아키텍처" 참고
+        ├── ViewModels/        # 현재 비어있음 — 계획된 ViewModel 계층, .gitkeep만 존재 → 아래 "아키텍처" 참고
+        ├── Views/             # 현재 비어있음 — 향후 XAML 재배치용, .gitkeep만 존재
+        └── (그 외 모든 .cs/.xaml 파일 — 아래 목록 참고, 아직 Models/Services/ViewModels/Views로 분류하지 않고 평평하게 둠)
+```
 
 ### 현재 구현된 파일
 
 - `VideoVault.csproj` — 프로젝트 파일 (빌드 후 자동 서명 타겟 포함 — [코드 서명](#코드-서명-로컬-개발용) 참고, 앱 아이콘(`ApplicationIcon`) 지정 포함 — [앱 아이콘](#앱-아이콘) 참고)
 - `Sign-Build.ps1` — 빌드 결과물(exe/dll)에 로컬 개발용 인증서로 서명하는 스크립트
-- `AppIcon.ico` — 앱 아이콘 (16/32/48/256px PNG-압축 아이콘을 담은 `.ico`) — [앱 아이콘](#앱-아이콘) 참고
+- `Assets/AppIcon.ico` — 앱 아이콘 (16/32/48/256px PNG-압축 아이콘을 담은 `.ico`) — [앱 아이콘](#앱-아이콘) 참고
 - `App.xaml` / `App.xaml.cs` — 애플리케이션 진입점
 - `MainWindow.xaml` / `MainWindow.xaml.cs` — 메인 윈도우 (관리 리스트 UI, 정렬/필터/썸네일 로직). 폴더 목록은 `FolderListWindow` 서브 창으로 분리되어 있다 → 상세: [동영상 파일 관리](doc/video-file-management.md)
 - `FolderListWindow.xaml` / `FolderListWindow.xaml.cs` — 폴더를 열어 동영상 파일을 스캔하고 관리 리스트에 추가하는 서브 창 → [동영상 파일 관리](doc/video-file-management.md)
@@ -109,7 +135,7 @@ exe 아이콘(탐색기/작업 표시줄)과 `MainWindow` 타이틀바 아이콘
 
 ### 계획된 추가 파일 (아직 미구현)
 
-아래는 [아키텍처](#아키텍처)와 [공통 관리](doc/common-management.md)의 로그 절에서 요구하는 기능을 구현할 때 추가될 예정인 파일이다. 현재 코드베이스에는 존재하지 않는다.
+아래는 [아키텍처](#아키텍처)와 [공통 관리](doc/common-management.md)의 로그 절에서 요구하는 기능을 구현할 때 추가될 예정인 파일이다. `Services/`/`ViewModels/` **폴더 자체는 2026-08-22 `src/` 재구성 때 미리 만들어뒀지만**(`.gitkeep`만 있는 빈 폴더), 아래 파일들은 아직 어느 것도 작성되지 않았다.
 
 ```
 Services/

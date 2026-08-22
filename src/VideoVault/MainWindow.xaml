@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:VideoVault"
         mc:Ignorable="d"
         Title="VideoVault - 동영상 파일 관리자"
-        Icon="AppIcon.ico"
+        Icon="Assets/AppIcon.ico"
         Height="1399" Width="1240"
         WindowStartupLocation="CenterScreen"
         PreviewKeyDown="MainWindow_PreviewKeyDown"
