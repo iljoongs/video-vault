@@ -47,6 +47,7 @@
 
 - `OnFileRenamed(item, oldFileName, masterActors)`: 파일명이 바뀌면(`RenameHelper.TryRenameManagedItemTo`/`TryEditFullPath` 성공 시 호출) ① 이 파일에 이미 지정된 배우들 중 옛 품번을 Credits로 갖고 있던 배우는 새 품번으로 값을 갱신하고, ② 새 품번이 이미 다른(아직 파일 없이 "연한 파란색"으로만 있던) 배우의 Credits와 일치하면 그 배우를 이 파일의 `Actors`에 자동으로 추가한다. 우연히 같은 문자열을 Credits로 가진, 이 파일과 무관한 배우의 데이터까지 건드리지 않도록 ①은 이 파일에 이미 지정된 배우만 대상으로 한다. `RenameHelper`(파일 이름 변경/이동 로직 자체)는 [동영상 파일 관리](video-file-management.md) 소유이며, `masterActors`를 매개변수로 받아 이 동기화를 호출한다 — `MainWindow`의 F2/우클릭 "이름변경"도 같은 경로를 타므로 어느 진입점으로 rename해도 동일하게 동기화된다.
 - `OnActorRemovedFromItem(item, removedActorName, masterActors)`: [속성 관리](properties-management.md)의 `PropertiesWindow`에서 배우 칩을 제거하고 커밋하면, 그 배우의 Credits에서 이 파일의 품번을 제거한다.
+- `OnFileDeleted(item, masterActors)`(2026-08-16 추가, 구현 완료): [동영상 파일 관리](video-file-management.md)의 "완전삭제"(`MainWindow.PermanentlyDeleteManaged_Click`)에서 항목을 `_managedItems`에서 제거하기 직전에 호출한다. 이 파일에 태깅되어 있던 모든 배우에 대해 내부적으로 `OnActorRemovedFromItem`을 호출해서, 각 배우의 Credits에서 이 파일의 품번을 제거한다 — 완전삭제는 항목 자체가 사라지므로, 정리하지 않으면 그 품번이 실제로는 존재하지 않는 파일인 채로 "파일 없음"(연한 색) 상태로 배우 관리 창에 고아처럼 남는다. **"제거"(소프트 삭제, `IsValid = false`, 복구 가능)는 대상이 아니다** — 항목이 관리 리스트에 그대로 남아있어 Credits와 어긋나지 않기 때문이다.
 
 ## "배우 동기화" 버튼
 

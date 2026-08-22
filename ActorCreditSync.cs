@@ -76,4 +76,18 @@ public static class ActorCreditSync
         var updatedCredits = actor.Credits.Where(c => !string.Equals(c, code, StringComparison.OrdinalIgnoreCase)).ToList();
         actor.SetCredits(updatedCredits);
     }
+
+    /// <summary>
+    /// 항목이 완전삭제될 때(관리 데이터 자체가 사라질 때) 호출한다. 이 파일에 태깅된 모든 배우의 Credits에서
+    /// 이 파일의 품번을 제거해서, 실제로는 더 이상 존재하지 않는 파일의 품번이 "파일 없음"(연한 색) 상태로
+    /// 배우 관리 창에 고아처럼 남지 않도록 한다(2026-08-16 추가). 소프트 삭제("제거", 복구 가능)는 항목이
+    /// 관리 리스트에 그대로 남아있으므로 대상이 아니다 — 완전삭제(되돌릴 수 없음)에서만 호출한다.
+    /// </summary>
+    public static void OnFileDeleted(ManagedVideoItem item, IEnumerable<ActorItem> masterActors)
+    {
+        foreach (var actorName in item.Actors)
+        {
+            OnActorRemovedFromItem(item, actorName, masterActors);
+        }
+    }
 }

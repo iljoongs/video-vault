@@ -7,7 +7,7 @@
         mc:Ignorable="d"
         Title="VideoVault - 동영상 파일 관리자"
         Icon="AppIcon.ico"
-        Height="1200" Width="1720"
+        Height="1399" Width="1240"
         WindowStartupLocation="CenterScreen"
         PreviewKeyDown="MainWindow_PreviewKeyDown"
         Closing="MainWindow_Closing"
@@ -15,6 +15,7 @@
         SizeChanged="MainWindow_SizeChanged">
     <Window.Resources>
         <local:ThumbnailPathConverter x:Key="ThumbnailPathConverter"/>
+        <local:TagsOrderConverter x:Key="TagsOrderConverter"/>
         <ContextMenu x:Key="ManagedItemContextMenu">
             <MenuItem Header="재생" Click="PlayManaged_Click"/>
             <MenuItem Header="이름변경 (F2)" Click="RenameManaged_Click"/>
@@ -46,7 +47,7 @@
         </DataTemplate>
         <DataTemplate x:Key="TagsCellTemplate">
             <Border Background="Transparent" Cursor="Hand" ToolTip="클릭하여 속성 열기" MouseLeftButtonUp="TagsCell_Click">
-                <ItemsControl ItemsSource="{Binding Tags}">
+                <ItemsControl ItemsSource="{Binding Tags, Converter={StaticResource TagsOrderConverter}}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <WrapPanel/>
@@ -117,8 +118,9 @@
                     <RowDefinition Height="Auto"/> <!-- 3: 속성 / 태그 관리 / 배우 관리 / 시리즈 관리 -->
                     <RowDefinition Height="Auto"/> <!-- 4: 배우 동기화 / 시리즈 동기화 -->
                     <RowDefinition Height="Auto"/> <!-- 5: 필터 영역 -->
-                    <RowDefinition Height="*"/>    <!-- 6: 리스트/아이콘 뷰 -->
-                    <RowDefinition Height="Auto"/> <!-- 7: 선택된 항목 상세 정보 -->
+                    <RowDefinition Height="Auto"/> <!-- 6: 시리즈 선택 / 필터 초기화 -->
+                    <RowDefinition Height="*"/>    <!-- 7: 리스트/아이콘 뷰 -->
+                    <RowDefinition Height="Auto"/> <!-- 8: 선택된 항목 상세 정보 -->
                 </Grid.RowDefinitions>
 
                 <!-- 파일 갯수 + 자동 저장 위치(1번째 줄) + 안내 문구(2번째 줄) -->
@@ -133,7 +135,7 @@
                 </StackPanel>
 
                 <!-- 선택된 항목의 썸네일 뷰어 (상단 오른쪽). 클릭하면 원본 이미지를 보여주고, 드래그 앤 드롭으로 썸네일을 지정할 수 있다. -->
-                <StackPanel x:Name="ThumbnailPanel" Grid.Row="0" Grid.RowSpan="6" Grid.Column="1"
+                <StackPanel x:Name="ThumbnailPanel" Grid.Row="0" Grid.RowSpan="7" Grid.Column="1"
                             Width="320" Margin="15,0,0,0" VerticalAlignment="Top">
                     <Border Width="320" Height="240" Background="#F0F0F0" BorderBrush="Gray" BorderThickness="1" Cursor="Hand"
                             ToolTip="클릭: 원본 이미지 보기 / 드래그 앤 드롭: 썸네일 지정"
@@ -178,11 +180,12 @@
                         <ComboBoxItem Content="보통 아이콘"/>
                         <ComboBoxItem Content="작은 아이콘"/>
                     </ComboBox>
-                    <CheckBox x:Name="ShowRemovedItemsCheckBox" Content="제거된 항목도 표시" VerticalAlignment="Center" Checked="ShowRemovedItemsCheckBox_Changed" Unchecked="ShowRemovedItemsCheckBox_Changed"/>
+                    <CheckBox x:Name="ShowRemovedItemsCheckBox" Content="제거된 항목도 표시" VerticalAlignment="Center" Margin="0,0,15,0" Checked="ShowRemovedItemsCheckBox_Changed" Unchecked="ShowRemovedItemsCheckBox_Changed"/>
+                    <CheckBox x:Name="IconOnlyModeCheckBox" Content="아이콘만 보기" VerticalAlignment="Center" ToolTip="아이콘 보기에서 썸네일만 보여주고 카드 크기를 썸네일 크기에 맞게 줄인다." Checked="IconOnlyModeCheckBox_Changed" Unchecked="IconOnlyModeCheckBox_Changed"/>
                 </StackPanel>
 
                 <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
-                    <Button Content="파일 없이 추가" Padding="10,5" Margin="0,0,5,0" Click="AddPlaceholderItem_Click"/>
+                    <Button Content="파일 없이 추가 (Ctrl+N)" Padding="10,5" Margin="0,0,5,0" Click="AddPlaceholderItem_Click"/>
                     <Button Content="목록 추가" Padding="10,5" Margin="0,0,5,0" Click="OpenFolderList_Click"/>
                     <Button Content="재생" Padding="10,5" Click="PlayManaged_Click"/>
                 </StackPanel>
@@ -198,29 +201,37 @@
                 <!-- 배우/시리즈 동기화: "속성" 버튼 밑에 배치(2026-08-10 위치 변경 — 예전에는 위 줄 배우 관리/시리즈 관리 옆에 있었음) -->
                 <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,0,0,10">
                     <Button Content="배우 동기화" Padding="10,5" Margin="0,0,5,0" Click="SyncActors_Click" ToolTip="각 배우의 품번(Credits) 목록을 기준으로, 아직 그 배우가 지정되지 않은 관리 리스트 항목에 배우를 추가한다."/>
-                    <Button Content="시리즈 동기화" Padding="10,5" Click="SyncSeries_Click" ToolTip="각 시리즈의 품번(Credits) 목록을 기준으로, 시리즈가 아직 비어있는 관리 리스트 항목에 해당 시리즈를 채워 넣는다."/>
+                    <Button Content="시리즈 동기화" Padding="10,5" Margin="0,0,15,0" Click="SyncSeries_Click" ToolTip="각 시리즈의 품번(Credits) 목록을 기준으로, 시리즈가 아직 비어있는 관리 리스트 항목에 해당 시리즈를 채워 넣는다."/>
+                    <Button Content="선택한 파일 이동" Padding="10,5" Click="MoveSelectedFiles_Click" ToolTip="선택한 각 항목을, 그 항목의 '코드' 값으로 된 하위 폴더(현재 폴더와 같은 위치)로 이동한다. 속성 창의 '파일 이동' 버튼과 동일한 동작을 여러 항목에 한 번에 적용한다."/>
                 </StackPanel>
 
-                <!-- 검색(필터) 영역: 시리즈 선택(신규) + 파일명 검색 + 폴더명 검색 + 태그/배우 필터 -->
+                <!-- 검색(필터) 영역: 파일명 검색 + 폴더명 검색 + 태그/배우 필터 -->
                 <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,0,0,10">
-                    <TextBlock Text="시리즈 선택:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                    <ComboBox x:Name="SeriesFilterComboBox" Width="240" Margin="0,0,15,0" SelectionChanged="SeriesFilterComboBox_SelectionChanged"/>
                     <TextBlock Text="파일명 검색:" VerticalAlignment="Center" Margin="0,0,5,0"/>
                     <TextBox x:Name="NameFilterTextBox" Width="80" Margin="0,0,15,0" TextChanged="NameFilterTextBox_TextChanged"/>
                     <TextBlock Text="폴더명 검색:" VerticalAlignment="Center" Margin="0,0,5,0"/>
                     <TextBox x:Name="FolderFilterTextBox" Width="80" Margin="0,0,15,0" TextChanged="FolderFilterTextBox_TextChanged"/>
                     <Button x:Name="TagFilterButton" Content="태그 필터" Padding="10,5" Margin="0,0,5,0" Click="TagFilterButton_Click"/>
-                    <Button x:Name="ActorFilterButton" Content="배우 필터" Padding="10,5" Margin="0,0,15,0" Click="ActorFilterButton_Click"/>
+                    <Button x:Name="ActorFilterButton" Content="배우 필터" Padding="10,5" Click="ActorFilterButton_Click"/>
+                </StackPanel>
+
+                <!-- 시리즈 선택 + 필터 초기화(2026-08-16 필터 영역에서 한 줄 아래로 분리, 필터 초기화를 옆으로 이동) -->
+                <StackPanel Grid.Row="6" Orientation="Horizontal" Margin="0,0,0,10">
+                    <TextBlock Text="시리즈 선택:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                    <ComboBox x:Name="SeriesFilterComboBox" Width="240" Margin="0,0,15,0" SelectionChanged="SeriesFilterComboBox_SelectionChanged"/>
                     <Button Content="필터 초기화" Padding="10,5" Click="ClearAllFilters_Click"/>
                 </StackPanel>
 
-                <Grid Grid.Row="6" Grid.ColumnSpan="2"
+                <Grid Grid.Row="7" Grid.ColumnSpan="2"
                       AllowDrop="True" DragEnter="ManagedList_DragEnter" Drop="ManagedList_Drop">
-                    <ListView x:Name="ManagedListView" SelectionMode="Extended" SelectionChanged="ManagedSelection_Changed">
+                    <ListView x:Name="ManagedListView" SelectionMode="Extended" SelectionChanged="ManagedSelection_Changed"
+                              TextSearch.TextPath="FileName">
                         <ListView.ItemContainerStyle>
                             <Style TargetType="ListViewItem">
                                 <EventSetter Event="PreviewMouseRightButtonDown" Handler="ManagedListItem_PreviewMouseRightButtonDown"/>
                                 <EventSetter Event="MouseDoubleClick" Handler="ManagedListRow_MouseDoubleClick"/>
+                                <EventSetter Event="PreviewMouseLeftButtonDown" Handler="ManagedItem_PreviewMouseLeftButtonDown"/>
+                                <EventSetter Event="PreviewMouseMove" Handler="ManagedItem_PreviewMouseMove"/>
                                 <Setter Property="ContextMenu" Value="{StaticResource ManagedItemContextMenu}"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsValid}" Value="False">
@@ -250,10 +261,14 @@
                     </ListView>
 
                     <ListBox x:Name="ManagedIconView" Visibility="Collapsed" SelectionMode="Extended" SelectionChanged="ManagedSelection_Changed"
-                              ScrollViewer.HorizontalScrollBarVisibility="Disabled" MouseRightButtonUp="ManagedIconView_MouseRightButtonUp">
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.CanContentScroll="True"
+                              VirtualizingPanel.IsVirtualizing="True" MouseRightButtonUp="ManagedIconView_MouseRightButtonUp"
+                              TextSearch.TextPath="ProductCode">
                         <ListBox.ItemContainerStyle>
                             <Style TargetType="ListBoxItem">
                                 <EventSetter Event="PreviewMouseRightButtonDown" Handler="ManagedIconItem_PreviewMouseRightButtonDown"/>
+                                <EventSetter Event="PreviewMouseLeftButtonDown" Handler="ManagedItem_PreviewMouseLeftButtonDown"/>
+                                <EventSetter Event="PreviewMouseMove" Handler="ManagedItem_PreviewMouseMove"/>
                                 <Setter Property="ContextMenu" Value="{StaticResource ManagedItemContextMenu}"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsValid}" Value="False">
@@ -271,14 +286,15 @@
                         </ListBox.ItemContainerStyle>
                         <ListBox.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <WrapPanel/>
+                                <local:VirtualizingWrapPanel/>
                             </ItemsPanelTemplate>
                         </ListBox.ItemsPanel>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <Border Width="{Binding Source={x:Static local:IconSizeSettings.Current}, Path=CardWidth}"
                                         Height="{Binding Source={x:Static local:IconSizeSettings.Current}, Path=CardHeight}"
-                                        Margin="5" BorderBrush="LightGray" BorderThickness="1" Padding="5">
+                                        Margin="5" BorderBrush="LightGray" BorderThickness="1" Padding="5"
+                                        MouseEnter="IconCard_MouseEnter" MouseLeave="IconCard_MouseLeave">
                                     <StackPanel>
                                         <Border Width="{Binding Source={x:Static local:IconSizeSettings.Current}, Path=ThumbnailWidth}"
                                                 Height="{Binding Source={x:Static local:IconSizeSettings.Current}, Path=ThumbnailHeight}"
@@ -308,11 +324,38 @@
                                                         </Style>
                                                     </TextBlock.Style>
                                                 </TextBlock>
+                                                <Border Background="#B0000000" VerticalAlignment="Bottom" Padding="4,2">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Source={x:Static local:IconCardFieldsSettings.Current}, Path=IconOnly}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <TextBlock Text="{Binding ProductCode}" Foreground="White" FontWeight="Bold" TextAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               FontSize="{Binding Source={x:Static local:IconSizeSettings.Current}, Path=FileNameFontSize}"
+                                                               ToolTip="더블클릭하여 재생" MouseLeftButtonDown="FileNameCell_MouseLeftButtonDown"/>
+                                                </Border>
                                             </Grid>
                                         </Border>
                                         <TextBlock Text="{Binding ProductCode}" TextWrapping="Wrap" TextAlignment="Center"
                                                    FontSize="{Binding Source={x:Static local:IconSizeSettings.Current}, Path=FileNameFontSize}" Margin="0,5,0,0"
-                                                   ToolTip="더블클릭하여 재생" MouseLeftButtonDown="FileNameCell_MouseLeftButtonDown"/>
+                                                   ToolTip="더블클릭하여 재생" MouseLeftButtonDown="FileNameCell_MouseLeftButtonDown">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Source={x:Static local:IconCardFieldsSettings.Current}, Path=IconOnly}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
                                         <TextBlock Text="{Binding SizeDisplay}"
                                                    FontSize="{Binding Source={x:Static local:IconSizeSettings.Current}, Path=PlayCountFontSize}" Foreground="Gray" HorizontalAlignment="Center">
                                             <TextBlock.Style>
@@ -320,6 +363,9 @@
                                                     <Setter Property="Visibility" Value="Visible"/>
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding Source={x:Static local:IconCardFieldsSettings.Current}, Path=ShowSize}" Value="False">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Source={x:Static local:IconCardFieldsSettings.Current}, Path=IconOnly}" Value="True">
                                                             <Setter Property="Visibility" Value="Collapsed"/>
                                                         </DataTrigger>
                                                     </Style.Triggers>
@@ -333,6 +379,9 @@
                                                     <Setter Property="Visibility" Value="Visible"/>
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding Source={x:Static local:IconCardFieldsSettings.Current}, Path=ShowPlayCount}" Value="False">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Source={x:Static local:IconCardFieldsSettings.Current}, Path=IconOnly}" Value="True">
                                                             <Setter Property="Visibility" Value="Collapsed"/>
                                                         </DataTrigger>
                                                     </Style.Triggers>
@@ -359,6 +408,9 @@
                                                         <DataTrigger Binding="{Binding Source={x:Static local:IconCardFieldsSettings.Current}, Path=ShowTags}" Value="False">
                                                             <Setter Property="Visibility" Value="Collapsed"/>
                                                         </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Source={x:Static local:IconCardFieldsSettings.Current}, Path=IconOnly}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </ItemsControl.Style>
@@ -372,6 +424,9 @@
                                                         <DataTrigger Binding="{Binding Source={x:Static local:IconCardFieldsSettings.Current}, Path=ShowSeries}" Value="False">
                                                             <Setter Property="Visibility" Value="Collapsed"/>
                                                         </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Source={x:Static local:IconCardFieldsSettings.Current}, Path=IconOnly}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </TextBlock.Style>
@@ -381,6 +436,76 @@
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
+
+                    <!-- "아이콘만 보기"에서 카드 텍스트 정보가 모두 숨겨지므로, 카드에 마우스를 올리면 대신 보여주는 파일 정보 팝업 -->
+                    <Popup x:Name="IconOnlyInfoPopup" Placement="Mouse" HorizontalOffset="12" VerticalOffset="12"
+                           AllowsTransparency="True" StaysOpen="True" IsHitTestVisible="False">
+                        <Border Background="White" BorderBrush="Gray" BorderThickness="1" Padding="8" CornerRadius="4">
+                            <StackPanel MaxWidth="220">
+                                <TextBlock Text="{Binding ProductCode}" FontWeight="Bold" TextWrapping="Wrap" TextAlignment="Center"/>
+                                <TextBlock Text="{Binding SizeDisplay}" Foreground="Gray" HorizontalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Source={x:Static local:IconCardFieldsSettings.Current}, Path=ShowSize}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Text="{Binding PlayCount, StringFormat='재생 {0}회'}" Foreground="Gray" HorizontalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Source={x:Static local:IconCardFieldsSettings.Current}, Path=ShowPlayCount}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <ItemsControl ItemsSource="{Binding Tags}" Margin="0,4,0,0">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel HorizontalAlignment="Center"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="#E0E0E0" CornerRadius="6" Padding="4,1" Margin="1">
+                                                <TextBlock Text="{Binding}" FontSize="10"/>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                    <ItemsControl.Style>
+                                        <Style TargetType="ItemsControl">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Source={x:Static local:IconCardFieldsSettings.Current}, Path=ShowTags}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ItemsControl.Style>
+                                </ItemsControl>
+                                <TextBlock Text="{Binding Series}" TextWrapping="Wrap" TextAlignment="Center" Foreground="Gray" HorizontalAlignment="Center" Margin="0,2,0,0">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Source={x:Static local:IconCardFieldsSettings.Current}, Path=ShowSeries}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
 
                     <!-- 태그 필터 팝업 (태그 마스터 목록 기준, "태그 필터" 버튼으로 열림) -->
                     <Popup x:Name="TagFilterPopup" StaysOpen="False" Placement="Bottom">
@@ -460,7 +585,7 @@
                 </Grid>
 
                 <!-- 선택된 항목의 상세 정보 -->
-                <Border Grid.Row="7" Grid.ColumnSpan="2" BorderBrush="LightGray" BorderThickness="1" Padding="10" Margin="0,10,0,0" MinHeight="90">
+                <Border Grid.Row="8" Grid.ColumnSpan="2" BorderBrush="LightGray" BorderThickness="1" Padding="10" Margin="0,10,0,0" MinHeight="90">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>

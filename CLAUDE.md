@@ -105,6 +105,7 @@ exe 아이콘(탐색기/작업 표시줄)과 `MainWindow` 타이틀바 아이콘
 - `IconSizeSettings.cs` — 관리 리스트 아이콘 보기의 카드/썸네일/폰트 크기 프리셋 관리 → [동영상 파일 관리](doc/video-file-management.md)
 - `IconCardFieldsSettings.cs` — 아이콘 보기 카드에 표시할 정보 선택 상태 관리 → [동영상 파일 관리](doc/video-file-management.md)
 - `FileNameNaturalComparer.cs` — 파일명 자연 정렬 비교자 → [동영상 파일 관리](doc/video-file-management.md)
+- `VirtualizingWrapPanel.cs` — 아이콘 보기용 커스텀 UI 가상화 패널 (`VirtualizingPanel` + `IScrollInfo`) → [공통 관리](doc/common-management.md)
 
 ### 계획된 추가 파일 (아직 미구현)
 

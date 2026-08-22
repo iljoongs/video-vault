@@ -35,6 +35,15 @@ public partial class SeriesManagerWindow : Window
         _seriesView.SortDescriptions.Add(new SortDescription(nameof(SeriesItem.Name), ListSortDirection.Ascending));
         SeriesListBox.ItemsSource = _seriesView;
 
+        // "작품수" 열은 글자 크기에 맞춰 자동 폭(Width 미지정 = Auto)을 유지하고, "시리즈 이름" 열이 나머지
+        // 공간을 채우도록 해서 "작품수" 열이 항상 테이블 오른쪽 끝에 붙어 있게 한다. GridView는 자체적으로
+        // Star 크기 조절을 지원하지 않으므로, 리스트 크기 변경(SizeChanged)과 "작품수" 열의 실제 폭 변경
+        // (ActualWidth, 자릿수가 바뀌는 경우 등)에 맞춰 코드로 재계산한다.
+        ((INotifyPropertyChanged)CreditCountColumn).PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == "ActualWidth") UpdateSeriesNameColumnWidth();
+        };
+
         RefreshCreditsPanel();
 
         // "# 창" 규칙(모든 창은 데이터가 바뀌면 동시에 갱신된다): 이 창을 열어둔 채로 다른 창(속성 창 등)에서
@@ -60,6 +69,15 @@ public partial class SeriesManagerWindow : Window
                 _subscribedCreditsSeries.PropertyChanged -= SelectedSeriesPropertyChanged;
             }
         };
+    }
+
+    private void SeriesListBox_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateSeriesNameColumnWidth();
+
+    private void UpdateSeriesNameColumnWidth()
+    {
+        const double scrollBarAndBorderAllowance = 22;
+        var remaining = SeriesListBox.ActualWidth - CreditCountColumn.ActualWidth - scrollBarAndBorderAllowance;
+        SeriesNameColumn.Width = Math.Max(60, remaining);
     }
 
     private void ManagedItems_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -248,25 +266,6 @@ public partial class SeriesManagerWindow : Window
         }
     }
 
-    /// <summary>
-    /// 새로 추가한 품번이 관리 리스트에 실제로 있는 파일이면, 그 항목의 Series에도 이 시리즈를 지정해서
-    /// (아직 다른 시리즈가 지정되어 있지 않은 경우에만) 최신 상태로 맞춘다. 배우와 달리 Series는 단일 값이므로
-    /// 이미 다른 시리즈가 지정된 항목은 조용히 건드리지 않는다(사용자가 고른 값을 임의로 덮어쓰지 않기 위함).
-    /// </summary>
-    private void UpdateManagedItemSeriesForCredit(SeriesItem series, string code)
-    {
-        var matches = _managedItems.Where(m =>
-            string.Equals(Path.GetFileNameWithoutExtension(m.FileName), code, StringComparison.OrdinalIgnoreCase));
-
-        foreach (var item in matches)
-        {
-            if (string.IsNullOrEmpty(item.Series))
-            {
-                item.Series = series.Name;
-            }
-        }
-    }
-
     private void AddCredit_Click(object sender, RoutedEventArgs e)
     {
         var series = SelectedSeries;
@@ -288,9 +287,50 @@ public partial class SeriesManagerWindow : Window
             return;
         }
 
+        // 다른 시리즈에 이미 같은 품번이 등록되어 있으면, 방금 사용자가 명시적으로 지정한 이 시리즈를 최신
+        // 정보로 보고 기존 시리즈의 Credits에서 제거한다(2026-08-16 추가). 실제 파일의 Series가 그 기존
+        // 시리즈를 가리키고 있었다면 이 시리즈로 함께 옮겨서, 나중에 기존 시리즈를 다시 열었을 때
+        // SyncCreditsFromManagedItems가 방금 제거한 품번을 도로 되살리지 않도록 한다.
+        var otherSeriesWithCode = _masterSeries
+            .Where(s => !ReferenceEquals(s, series) && s.Credits.Any(c => string.Equals(c, code, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+
+        if (otherSeriesWithCode.Count > 0)
+        {
+            // 다른 시리즈에서 조용히 옮기지 않고 먼저 확인을 받는다(2026-08-16 추가) — 실수로 다른 시리즈의
+            // 등록을 뺏어오는 것을 막기 위함이다. "아니오"를 고르면 아무것도 바꾸지 않고 추가 자체를 취소한다.
+            var otherNames = string.Join(", ", otherSeriesWithCode.Select(s => s.Name));
+            var question = $"'{code}' 품번은 이미 '{otherNames}' 시리즈에 등록되어 있습니다.\n" +
+                            $"기존 시리즈에서 제거하고 '{series.Name}'(으)로 옮기시겠습니까?";
+            var confirm = MessageBox.Show(question, "중복 품번 확인", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.Yes)
+            {
+                return;
+            }
+        }
+
+        foreach (var other in otherSeriesWithCode)
+        {
+            other.SetCredits(other.Credits.Where(c => !string.Equals(c, code, StringComparison.OrdinalIgnoreCase)).ToList());
+        }
+
+        // Credits에 먼저 추가한 뒤에 item.Series를 바꿔야 한다 — item.Series 변경은 ManagedItem_PropertyChanged를
+        // 통해 RefreshCreditsPanel()(→ SyncCreditsFromManagedItems)을 동기적으로 즉시 실행시키는데, 그 시점에
+        // Credits에 아직 이 품번이 없으면 "누락된 코드"로 오인해 먼저 추가해버리고, 바로 아래의 series.SetCredits가
+        // 또 한 번 추가해서 같은 품번이 두 개 등록되는 버그가 있었다(2026-08-16 수정).
         var updated = new List<string>(series.Credits) { code };
         series.SetCredits(updated);
-        UpdateManagedItemSeriesForCredit(series, code);
+
+        var matches = _managedItems.Where(m =>
+            string.Equals(Path.GetFileNameWithoutExtension(m.FileName), code, StringComparison.OrdinalIgnoreCase));
+        foreach (var item in matches)
+        {
+            if (string.IsNullOrEmpty(item.Series) || otherSeriesWithCode.Any(s => string.Equals(s.Name, item.Series, StringComparison.OrdinalIgnoreCase)))
+            {
+                item.Series = series.Name;
+            }
+        }
+
         RefreshCreditsPanel();
     }
 

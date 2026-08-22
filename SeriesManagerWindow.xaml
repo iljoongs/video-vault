@@ -43,11 +43,11 @@
         </Grid.RowDefinitions>
 
         <ListView x:Name="SeriesListBox" Grid.Row="0" Margin="0,0,0,10"
-                 SelectionChanged="SeriesListBox_SelectionChanged">
+                 SelectionChanged="SeriesListBox_SelectionChanged" SizeChanged="SeriesListBox_SizeChanged">
             <ListView.View>
                 <GridView>
-                    <GridViewColumn Header="시리즈 이름" Width="270" DisplayMemberBinding="{Binding Name}"/>
-                    <GridViewColumn Header="작품수" Width="80" DisplayMemberBinding="{Binding Credits.Count}"/>
+                    <GridViewColumn x:Name="SeriesNameColumn" Header="시리즈 이름" DisplayMemberBinding="{Binding Name}"/>
+                    <GridViewColumn x:Name="CreditCountColumn" Header="작품수" DisplayMemberBinding="{Binding Credits.Count}"/>
                 </GridView>
             </ListView.View>
         </ListView>

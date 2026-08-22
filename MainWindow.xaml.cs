@@ -368,6 +368,13 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (e.Key == Key.N && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            AddPlaceholderItem_Click(sender, e);
+            e.Handled = true;
+            return;
+        }
+
         switch (e.Key)
         {
             case Key.F2:
@@ -598,6 +605,10 @@ public partial class MainWindow : Window
         IconPlayCountFieldCheckBox.IsChecked = settings.IconShowPlayCount;
         IconTagsFieldCheckBox.IsChecked = settings.IconShowTags;
         IconSeriesFieldCheckBox.IsChecked = settings.IconShowSeries;
+
+        IconCardFieldsSettings.Current.IconOnly = settings.IconOnlyMode;
+        IconSizeSettings.Current.SetIconOnly(settings.IconOnlyMode);
+        IconOnlyModeCheckBox.IsChecked = settings.IconOnlyMode;
     }
 
     /// <summary>
@@ -925,6 +936,7 @@ public partial class MainWindow : Window
                 IconShowPlayCount = IconCardFieldsSettings.Current.ShowPlayCount,
                 IconShowTags = IconCardFieldsSettings.Current.ShowTags,
                 IconShowSeries = IconCardFieldsSettings.Current.ShowSeries,
+                IconOnlyMode = IconCardFieldsSettings.Current.IconOnly,
             };
 
             SettingsRepository.Save(AppPaths.SettingsPath, settings);
@@ -1113,10 +1125,11 @@ public partial class MainWindow : Window
             conflicts.Count > 0 ? MessageBoxImage.Warning : MessageBoxImage.Information);
     }
 
-    private static string BuildSyncResultMessage(List<string> updated, List<string> conflicts)
+    private static string BuildSyncResultMessage(List<string> updated, List<string> conflicts,
+        string updatedLabel = "업데이트된 항목", string conflictsLabel = "충돌로 건너뜀(이미 다른 시리즈가 지정됨)")
     {
         const int maxLines = 20;
-        var lines = new List<string> { $"업데이트된 항목: {updated.Count}건" };
+        var lines = new List<string> { $"{updatedLabel}: {updated.Count}건" };
         lines.AddRange(updated.Take(maxLines));
         if (updated.Count > maxLines)
         {
@@ -1126,7 +1139,7 @@ public partial class MainWindow : Window
         if (conflicts.Count > 0)
         {
             lines.Add(string.Empty);
-            lines.Add($"충돌로 건너뜀(이미 다른 시리즈가 지정됨): {conflicts.Count}건");
+            lines.Add($"{conflictsLabel}: {conflicts.Count}건");
             lines.AddRange(conflicts.Take(maxLines));
             if (conflicts.Count > maxLines)
             {
@@ -1135,6 +1148,105 @@ public partial class MainWindow : Window
         }
 
         return string.Join("\n", lines);
+    }
+
+    /// <summary>
+    /// 선택한 각 항목을, [속성 관리](properties-management.md)의 "파일 이동" 버튼(`PropertiesWindow.MoveByCodeButton_Click`)과
+    /// 동일한 규칙으로 이동한다(2026-08-16 추가) — `RenameHelper.LibraryBasePath`(`E:\happy`) 밑의, 그 항목의
+    /// `Code` 값으로 된 하위 폴더로 옮긴다. 속성 창의 "파일 이동"과 달리 코드를 새로 입력받지 않고, 각 항목에
+    /// 이미 저장된 `Code` 값을 그대로 쓴다(여러 항목을 한 번에 다루므로 항목마다 다른 코드를 입력받을 방법이
+    /// 없기 때문 — 코드가 비어있으면 건너뛴다).
+    /// </summary>
+    private void MoveSelectedFiles_Click(object sender, RoutedEventArgs e)
+    {
+        var items = GetSelectedManagedItems();
+        if (items.Count == 0)
+        {
+            MessageBox.Show("이동할 항목을 선택하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var question = items.Count == 1
+            ? $"'{items[0].FileName}' 항목을 코드 폴더로 이동하시겠습니까?\n"
+            : $"선택한 {items.Count}개 항목을 각자의 코드 폴더로 이동하시겠습니까?\n";
+
+        var confirm = MessageBox.Show(
+            question + $"각 항목은 {RenameHelper.LibraryBasePath}\\ 밑의, 그 항목 '코드' 값으로 된 하위 폴더로 이동됩니다.\n(속성 창의 '파일 이동'과 동일한 대상 폴더 규칙)",
+            "선택한 파일 이동 확인",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (confirm != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        var moved = new List<string>();
+        var skipped = new List<string>();
+
+        foreach (var item in items)
+        {
+            var code = item.Code.Trim();
+            if (string.IsNullOrEmpty(code) || code.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            {
+                skipped.Add($"{item.FileName}: 코드가 비어있거나 올바르지 않음");
+                continue;
+            }
+
+            var newDirectory = Path.Combine(RenameHelper.LibraryBasePath, code);
+            var newFullPath = Path.Combine(newDirectory, item.FileName);
+
+            if (string.Equals(newFullPath, item.FullPath, StringComparison.OrdinalIgnoreCase))
+            {
+                skipped.Add($"{item.FileName}: 이미 같은 위치");
+                continue;
+            }
+
+            // 관리 리스트가 기록한 위치(item.FullPath)에 파일이 없는 경우 — 이전 "선택한 파일 이동" 작업이 중간에
+            // 중단되어(예: 이름 중복 대화상자가 여러 개 쌓여 응답 없음처럼 보이다 강제 종료됨, 2026-08-16 실제 발견)
+            // 파일은 이미 물리적으로 옮겨졌는데 기록만 예전 경로로 남아있는 경우가 있다. 이럴 때 무작정 이동을
+            // 시도하면(원본이 없으므로) 실패로만 처리되는데, 이미 코드 폴더에 같은 파일이 가 있다면 실제로 옮길
+            // 필요 없이 기록(FullPath)만 그 위치로 바로잡아주면 된다.
+            if (!File.Exists(item.FullPath))
+            {
+                if (File.Exists(newFullPath))
+                {
+                    item.FullPath = newFullPath;
+                    moved.Add($"{item.FileName} → {code}\\ (실제로는 이미 이동되어 있어 경로만 수정)");
+                }
+                else
+                {
+                    skipped.Add($"{item.FileName}: 기록된 위치와 코드 폴더 어디에도 파일이 없음 (기록된 경로: {item.FullPath})");
+                }
+
+                continue;
+            }
+
+            // TryMoveToSpecificFolder(대화상자를 직접 띄우는 버전)는 여러 항목을 한꺼번에 옮길 때 이름이 겹치는
+            // 항목마다 대화상자가 쌓여 응답 없음처럼 보이는 문제가 있었다(2026-08-16 발견) — 대화상자 없는
+            // TryMoveToSpecificFolderSilent로 결과만 모아뒀다가 마지막에 요약 하나로 보여준다.
+            if (RenameHelper.TryMoveToSpecificFolderSilent(item, newDirectory, out var failureReason, out var exception, out _))
+            {
+                moved.Add($"{item.FileName} → {code}\\");
+            }
+            else
+            {
+                skipped.Add($"{item.FileName}: {failureReason ?? exception?.Message ?? "이동 실패"}");
+            }
+        }
+
+        // 디바운스 자동 저장(ScheduleAutoSave)에만 맡기면, 여러 항목을 연달아 옮기는 동안 계속 타이머가 리셋되다가
+        // 이 작업 도중/직후에 앱이 강제 종료될 경우 방금 옮긴 파일들의 새 경로가 library.json에 반영되지 않은 채로
+        // 남을 수 있다(2026-08-16 실제 발견 — 실제 파일은 이미 옮겨졌는데 관리 리스트만 예전 경로를 기억하고 있어
+        // "파일 없음" 오류가 나는 원인이 됐다). 결과 대화상자를 띄우기 전에 즉시 저장해 이 창을 확인하는 시점에는
+        // 이미 디스크에 반영되어 있도록 한다.
+        SaveAllNow();
+
+        MessageBox.Show(
+            BuildSyncResultMessage(moved, skipped, "이동된 항목", "건너뜀"),
+            "선택한 파일 이동 결과",
+            MessageBoxButton.OK,
+            skipped.Count > 0 ? MessageBoxImage.Warning : MessageBoxImage.Information);
     }
 
     // ===================== 관리 리스트: 정렬 =====================
@@ -1289,6 +1401,25 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
+    /// <summary>"아이콘만 보기"에서는 카드에 텍스트 정보가 전혀 없으므로, 카드에 마우스를 올리면 대신
+    /// 파일 정보 팝업을 보여준다(2026-08-16 추가). "아이콘만 보기"가 꺼져 있으면(카드에 이미 정보가 보이므로)
+    /// 아무 동작도 하지 않는다.</summary>
+    private void IconCard_MouseEnter(object sender, MouseEventArgs e)
+    {
+        if (!IconCardFieldsSettings.Current.IconOnly || sender is not FrameworkElement { DataContext: ManagedVideoItem item })
+        {
+            return;
+        }
+
+        IconOnlyInfoPopup.DataContext = item;
+        IconOnlyInfoPopup.IsOpen = true;
+    }
+
+    private void IconCard_MouseLeave(object sender, MouseEventArgs e)
+    {
+        IconOnlyInfoPopup.IsOpen = false;
+    }
+
     private void IconFieldToggle_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not CheckBox { Tag: string fieldKey } checkBox)
@@ -1388,6 +1519,18 @@ public partial class MainWindow : Window
         _showRemovedItems = ShowRemovedItemsCheckBox.IsChecked == true;
         _managedView.Refresh();
         ScheduleSettingsAutoSave();
+    }
+
+    private void IconOnlyModeCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!IsInitialized)
+        {
+            return;
+        }
+
+        var isChecked = IconOnlyModeCheckBox.IsChecked == true;
+        IconCardFieldsSettings.Current.IconOnly = isChecked;
+        IconSizeSettings.Current.SetIconOnly(isChecked);
     }
 
     private bool FilterManagedItem(object obj)
@@ -1635,6 +1778,44 @@ public partial class MainWindow : Window
         }
     }
 
+    // ===================== 관리 리스트: 항목을 드래그하면 품번이 클립보드에 복사됨 =====================
+
+    private Point? _managedItemDragStart;
+
+    /// <summary>드래그 시작 위치만 기록한다(선택 동작은 그대로 진행되도록 이벤트를 소비하지 않음).</summary>
+    private void ManagedItem_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _managedItemDragStart = e.GetPosition(null);
+    }
+
+    /// <summary>
+    /// 리스트 보기/아이콘 보기의 항목(행/카드)을 드래그하면 그 항목의 품번을 텍스트로 드래그 시작하고, 동시에
+    /// 클립보드에도 복사한다(2026-08-16 추가) — 드롭 대상이 없어도(예: 아무 데나 드롭하거나 Esc로 취소해도)
+    /// 클립보드에는 이미 복사되어 있어 "드래그 = 복사"처럼 동작한다. 드래그 데이터는 [시리즈 관리](series-management.md)/
+    /// [배우 관리](actor-management.md) Credits 목록의 텍스트 드롭 기능(`CreditsList_Drop`)이 받는 형식과 동일한
+    /// `DataFormats.Text`라, 그 목록으로 바로 드래그해서 작품을 추가하는 데도 그대로 쓸 수 있다.
+    /// </summary>
+    private void ManagedItem_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || _managedItemDragStart is not { } start ||
+            sender is not FrameworkElement { DataContext: ManagedVideoItem item } element)
+        {
+            return;
+        }
+
+        var current = e.GetPosition(null);
+        if (Math.Abs(current.X - start.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(current.Y - start.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        _managedItemDragStart = null;
+        var code = item.ProductCode;
+        Clipboard.SetText(code);
+        DragDrop.DoDragDrop(element, new DataObject(DataFormats.Text, code), DragDropEffects.Copy);
+    }
+
     private void RenameManaged_Click(object sender, RoutedEventArgs e)
     {
         var item = GetSelectedManagedItem();
@@ -1673,19 +1854,54 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    /// <summary>"속성" 버튼 왼쪽의 "파일 없이 추가" 버튼 — 실제 파일 없이 관리 리스트 항목을 미리 만들어두고
-    /// (아직 구하지 못한 작품 등), 속성 창에서 파일 정보를 입력받는다. 파일명을 입력하지 않고 닫으면
-    /// (`PropertiesWindow`의 새 항목 커밋 로직이) 조용히 추가를 취소한다 — [관리 리스트] "파일 없이 추가" 참고.</summary>
+    /// <summary>
+    /// "속성" 버튼 왼쪽의 "파일 없이 추가" 버튼 — 실제 파일 없이 관리 리스트 항목을 미리 만들어두고
+    /// (아직 구하지 못한 작품 등) 이어서 속성 창에서 나머지 정보를 입력받는다(2026-08-16 변경, 사용자 요청).
+    /// 예전에는 파일명도 속성 창 안의 빈 입력란에서 입력받았는데(속성 창을 새 항목 모드로 바로 열고, 파일명이
+    /// 채워진 채로 닫혀야만 그때 목록에 추가됨), 지금은 `RenameWindow`(F2 이름변경과 같은 대화상자)를 재사용해
+    /// **파일명을 먼저** 받고, 그 자리에서 바로 관리 리스트에 추가한 뒤(제거된 항목으로 취급, 아래 참고) **곧바로
+    /// 선택·스크롤**하고 나서 속성 창을 연다 — 필수 입력(파일명)이 먼저 확정되어 새 항목이 언제 "진짜로" 생기는지
+    /// 더 명확하고, 속성 창을 열기도 전에 목록에서 위치를 바로 확인할 수 있다.
+    /// </summary>
     private void AddPlaceholderItem_Click(object sender, RoutedEventArgs e)
     {
+        var dialog = new RenameWindow(string.Empty) { Owner = this, Title = "파일명 입력" };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        // 입력한 대소문자와 무관하게 항상 소문자로 저장한다(품번 표기는 보통 소문자라 관례에 맞추고,
+        // 대소문자만 다른 중복 항목이 따로 생기는 것도 막는다) — 실제 파일명을 다루는 F2 이름변경 쪽은
+        // 같은 RenameWindow를 쓰지만 이 정규화를 거치지 않는다(실제 파일명은 사용자가 원하는 대소문자를 유지해야 하므로).
+        var fileName = dialog.NewFileName.ToLowerInvariant();
+        var duplicate = _managedItems.FirstOrDefault(m => string.Equals(m.FileName, fileName, StringComparison.OrdinalIgnoreCase));
+        if (duplicate is not null)
+        {
+            MessageBox.Show(
+                $"'{fileName}' 이름의 항목이 이미 관리 리스트에 있습니다" +
+                (duplicate.IsValid ? " (활성 상태)." : " (제거된 상태).") +
+                "\n다른 파일명을 입력하거나, 기존 항목을 활용하세요.",
+                "이미 존재하는 파일명",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
         var newItem = new ManagedVideoItem
         {
+            FileName = fileName,
+            FullPath = fileName,
             ModifiedDate = DateTime.Now,
             IsPlaceholder = true,
+            IsValid = false,
             IsExist = false,
         };
 
-        OpenPropertiesWindow(newItem, isNewItem: true);
+        _managedItems.Add(newItem);
+        _managedView.Refresh();
+        SelectAndScrollToManagedItem(newItem);
+        OpenPropertiesWindow(newItem);
     }
 
     private void OpenPropertiesWindow(ManagedVideoItem item, bool isNewItem = false)
@@ -1867,6 +2083,10 @@ public partial class MainWindow : Window
         {
             foreach (var item in items)
             {
+                // 완전삭제는 항목 자체가 사라지므로, 이 파일의 품번이 배우/시리즈 관리 창의 작품(Credits)
+                // 목록에 "파일 없음" 상태로 고아처럼 남지 않도록 먼저 정리한다(2026-08-16 추가).
+                ActorCreditSync.OnFileDeleted(item, _masterActors);
+                SeriesCreditSync.OnFileDeleted(item, _masterSeries);
                 _managedItems.Remove(item);
             }
             _managedView.Refresh();

@@ -414,7 +414,11 @@ public partial class PropertiesWindow : Window
         }
     }
 
-    /// <summary>맨 마지막 폴더명을 "코드" 값으로 바꾼 위치로 파일(및 관련 썸네일/원본 파일)을 이동한다.</summary>
+    /// <summary>
+    /// `RenameHelper.LibraryBasePath`(`E:\happy`) 밑의 "코드" 값으로 된 폴더로 파일(및 관련 썸네일/원본 파일)을
+    /// 이동한다. 예전에는 파일이 지금 있는 폴더의 바로 위 폴더를 기준으로 삼았으나(2026-08-16 이전), 실제
+    /// 라이브러리에는 파일이 여러 단계 깊이 폴더에 들어있는 경우가 많아 항상 `E:\happy`를 기준으로 고정했다.
+    /// </summary>
     private void MoveByCodeButton_Click(object sender, RoutedEventArgs e)
     {
         var code = CodeBox.Text.Trim();
@@ -424,15 +428,7 @@ public partial class PropertiesWindow : Window
             return;
         }
 
-        var currentDirectory = Path.GetDirectoryName(_item.FullPath);
-        var parentDirectory = currentDirectory is null ? null : Path.GetDirectoryName(currentDirectory);
-        if (string.IsNullOrEmpty(parentDirectory))
-        {
-            MessageBox.Show("상위 폴더를 확인할 수 없습니다.", "파일 이동 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        var newDirectory = Path.Combine(parentDirectory, code);
+        var newDirectory = Path.Combine(RenameHelper.LibraryBasePath, code);
         var newFullPath = Path.Combine(newDirectory, _item.FileName);
 
         if (string.Equals(newFullPath, _item.FullPath, StringComparison.OrdinalIgnoreCase))

@@ -51,4 +51,8 @@ public class AppSettings
     public bool IconShowPlayCount { get; set; } = true;
     public bool IconShowTags { get; set; } = true;
     public bool IconShowSeries { get; set; }
+
+    /// <summary>"아이콘만 보기"(2026-08-16 추가) — 켜면 아이콘 보기 카드가 썸네일만 보여주고 텍스트 정보(품번/크기/
+    /// 재생횟수/태그/시리즈)는 모두 숨기며, 카드 크기도 썸네일 크기에 딱 맞게 줄어든다. <see cref="IconCardFieldsSettings.IconOnly"/> 참고.</summary>
+    public bool IconOnlyMode { get; set; }
 }
