@@ -54,9 +54,9 @@ dotnet run --project src/VideoVault
 
 ## 앱 아이콘
 
-exe 아이콘(탐색기/작업 표시줄)과 `MainWindow` 타이틀바 아이콘 모두 `AppIcon.ico`(2026-08-02 추가, **구현 완료**, 2026-08-22 `src/VideoVault/Assets/`로 위치 이동)를 사용한다.
+exe 아이콘(탐색기/작업 표시줄)과 `MainWindow` 타이틀바 아이콘 모두 `AppIcon.ico`(2026-08-02 추가, **구현 완료**, 2026-08-22 `src/VideoVault/Assets/`로 위치 이동, 2026-08-22 아이콘 원본 자체를 교체)를 사용한다.
 
-- **원본**: 저장소 루트의 `media-player-interface-symbol-svgrepo-com.svg`(재생 버튼이 있는 미디어 플레이어 창 모양 아이콘, 코드가 아니라서 `src/`로 옮기지 않고 루트에 그대로 둠)를 소스로 만들었다. WPF에 SVG를 직접 아이콘으로 쓰는 기능이 없어(`.ico` 필요), SVG의 `<path>`/`<polygon>` 데이터를 WPF `Geometry.Parse`로 그대로 파싱해(SVG path mini-language와 XAML의 것이 거의 동일해 별도 변환 없이 재사용 가능했음) `DrawingVisual`에 렌더링한 뒤 16/32/48/256px 크기로 각각 `RenderTargetBitmap` + `PngBitmapEncoder`로 PNG를 만들고, 이 PNG들을 담은 `.ico`(PNG-압축 아이콘 항목, Vista 이상에서 지원)를 직접 조립하는 격리된 콘솔 스크립트로 변환했다(외부 SVG 변환 도구 없이 처리, 이 PC에 ImageMagick/Inkscape 등이 없었음). 스크립트 자체는 프로젝트에는 포함하지 않음(1회성 변환용).
+- **원본 (2026-08-22 교체)**: 저장소 루트의 `video-vault.png`(512x512, 알파 채널 포함 flat-style 미디어 플레이어 아이콘)를 소스로 쓴다. `System.Drawing`으로 16/32/48/256px 각 크기로 고품질 리샘플링(`InterpolationMode.HighQualityBicubic`, 알파 유지)한 뒤 PNG로 인코딩하고, 이 PNG들을 담은 `.ico`(PNG-압축 아이콘 항목, Vista 이상에서 지원)를 직접 조립하는 1회성 PowerShell 스크립트로 변환했다(프로젝트에는 스크립트 자체를 포함하지 않음). **이전(2026-08-02~2026-08-22)에는** 저장소 루트의 `media-player-interface-symbol-svgrepo-com.svg`(재생 버튼이 있는 미디어 플레이어 창 모양 아이콘)를 WPF `Geometry.Parse` + `DrawingVisual`/`RenderTargetBitmap`로 래스터화하는 방식을 썼으나, `video-vault.png`로 교체되며 이 방식은 더 이상 쓰이지 않는다(SVG 파일 자체는 참고용으로 루트에 남겨둠).
 - **적용 위치**:
   - `src/VideoVault/VideoVault.csproj`: `<ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>`로 exe 자체의 아이콘(탐색기/작업 표시줄, 앱을 실행하지 않은 상태에서도 보임)을 지정. `<Resource Include="Assets\AppIcon.ico" />`로 함께 포함해 런타임에도 참조 가능하게 함.
   - `MainWindow.xaml`: `Icon="Assets/AppIcon.ico"`로 타이틀바/Alt+Tab 아이콘을 지정. 서브 창(`FolderListWindow` 등)은 별도로 지정하지 않았다(자식 창은 보통 별도 작업 표시줄 항목을 갖지 않으므로).
@@ -73,7 +73,8 @@ video-vault/
 ├── CLAUDE.md
 ├── video-vault.sln
 ├── .gitignore
-├── media-player-interface-symbol-svgrepo-com.svg   # 앱 아이콘 원본 SVG(코드 아님, 루트 유지)
+├── video-vault.png                                 # 앱 아이콘 원본 PNG(현재 사용, 코드 아님, 루트 유지) — [앱 아이콘](#앱-아이콘) 참고
+├── media-player-interface-symbol-svgrepo-com.svg   # 앱 아이콘 구 원본 SVG(2026-08-22부터 미사용, 참고용으로만 유지)
 ├── doc/                       # 기능별 상세 문서 → 아래 "문서 구성" 참고
 └── src/
     └── VideoVault/            # WPF 프로젝트 본체
