@@ -140,7 +140,7 @@
                     <Button Content="썸네일 추가" Padding="8,3" Margin="0,0,5,0" Click="AddThumbnailButton_Click"/>
                     <Button Content="썸네일 삭제" Padding="8,3" Click="DeleteThumbnailButton_Click"/>
                 </StackPanel>
-                <Border Height="150" HorizontalAlignment="Stretch" Background="#F0F0F0" BorderBrush="Gray" BorderThickness="1"
+                <Border Width="200" Height="150" HorizontalAlignment="Left" Background="#F0F0F0" BorderBrush="Gray" BorderThickness="1"
                         ToolTip="드래그 앤 드롭으로 썸네일 지정"
                         AllowDrop="True" Drop="ThumbnailViewer_Drop" DragOver="ThumbnailViewer_DragOver">
                     <Grid>
