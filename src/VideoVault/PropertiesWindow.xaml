@@ -110,41 +110,65 @@
                                     <StackPanel/>
                                 </ItemsPanelTemplate>
                             </ComboBox.ItemsPanel>
+                            <!-- 접힌 상태(선택 표시)는 이름만 — ComboBox는 기본적으로 이 ItemTemplate을 접힌 상태
+                                 표시에도 그대로 쓰므로, 썸네일 포함 버전은 아래 ItemContainerStyle로 드롭다운
+                                 행에만 별도로 입힌다(2026-08-26 추가, 사용자 요청). -->
                             <ComboBox.ItemTemplate>
                                 <DataTemplate>
-                                    <StackPanel Orientation="Horizontal" Margin="0,2">
-                                        <Border Width="72" Height="72" Margin="0,0,6,0" Background="#F0F0F0" BorderBrush="Gray" BorderThickness="1">
-                                            <Grid>
-                                                <Image Source="{Binding ThumbnailPath, Converter={StaticResource ThumbnailPathConverter}}" Stretch="UniformToFill">
-                                                    <Image.Style>
-                                                        <Style TargetType="Image">
-                                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding HasThumbnail}" Value="True">
-                                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </Image.Style>
-                                                </Image>
-                                                <TextBlock Text="👤" FontSize="36" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                    <TextBlock.Style>
-                                                        <Style TargetType="TextBlock">
-                                                            <Setter Property="Visibility" Value="Visible"/>
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding HasThumbnail}" Value="True">
-                                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </TextBlock.Style>
-                                                </TextBlock>
-                                            </Grid>
-                                        </Border>
-                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
-                                    </StackPanel>
+                                    <TextBlock Text="{Binding Name}"/>
                                 </DataTemplate>
                             </ComboBox.ItemTemplate>
+                            <ComboBox.ItemContainerStyle>
+                                <Style TargetType="ComboBoxItem">
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ComboBoxItem">
+                                                <Border x:Name="Bd" Background="Transparent" Padding="4,2" SnapsToDevicePixels="True">
+                                                    <StackPanel Orientation="Horizontal" Margin="0,2">
+                                                        <Border Width="72" Height="72" Margin="0,0,6,0" Background="#F0F0F0" BorderBrush="Gray" BorderThickness="1">
+                                                            <Grid>
+                                                                <Image Source="{Binding ThumbnailPath, Converter={StaticResource ThumbnailPathConverter}}" Stretch="UniformToFill">
+                                                                    <Image.Style>
+                                                                        <Style TargetType="Image">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding HasThumbnail}" Value="True">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Image.Style>
+                                                                </Image>
+                                                                <TextBlock Text="👤" FontSize="36" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding HasThumbnail}" Value="True">
+                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                            </Grid>
+                                                        </Border>
+                                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsHighlighted" Value="True">
+                                                        <Setter TargetName="Bd" Property="Background" Value="#3399FF"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsSelected" Value="True">
+                                                        <Setter TargetName="Bd" Property="Background" Value="#CCE8FF"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ComboBox.ItemContainerStyle>
                         </ComboBox>
                         <Button Content="추가" Padding="8,3" Click="AddActor_Click"/>
                     </StackPanel>
