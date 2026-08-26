@@ -5,7 +5,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="배우 정보" Height="290" Width="380"
-        WindowStartupLocation="CenterOwner">
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
     <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>

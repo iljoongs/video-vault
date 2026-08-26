@@ -2,7 +2,7 @@
 
 > [메인 지시서](../CLAUDE.md)의 하위 문서. 특정 도메인(동영상/속성/태그/배우/시리즈)에 속하지 않고 앱 전체에 걸쳐 적용되는 것들 — 설정 저장, 오류 처리, 성능, 확장성, 창 관리 정책, 썸네일 공통 인프라, 전역 컨벤션, 로그, 테스트 — 을 모은다.
 
-**관련 파일**: `ImageLoadHelper.cs`, `WindowsIconHelper.cs`, `ThumbnailPathConverter.cs`, `ThumbnailHelper.cs`, `OriginalImageWindow.xaml`/`.xaml.cs`, `DragDropImageHelper.cs`, `AppPaths.cs`, `AppSettings.cs`, `SettingsRepository.cs`, `SingleInstanceWindow.cs`, `WindowPositionMemory.cs`, `WindowSnapHelper.cs`, `FormatUtil.cs`
+**관련 파일**: `App.xaml`/`.xaml.cs`, `ImageLoadHelper.cs`, `WindowsIconHelper.cs`, `ThumbnailPathConverter.cs`, `ThumbnailHelper.cs`, `OriginalImageWindow.xaml`/`.xaml.cs`, `DragDropImageHelper.cs`, `AppPaths.cs`, `AppSettings.cs`, `SettingsRepository.cs`, `SingleInstanceWindow.cs`, `WindowPositionMemory.cs`, `WindowSnapHelper.cs`, `FormatUtil.cs`
 
 ## 썸네일 관리
 
@@ -159,6 +159,22 @@ ITagRepository
   - **2층(1층만으로는 불충분해서 추가로 필요했던 부분): 선택된 `ActorItem`/`SeriesItem` 자신의 `Credits`가 바뀌면** — `PropertiesWindow.TryCommitFormFields()`는 `_item.SetActors(...)`(1층이 감지하는 지점)를 먼저 호출하고, 그 **다음에** `ActorCreditSync.OnActorRemovedFromItem`이 실제로 `actor.Credits`에서 품번을 제거한다(시리즈도 `SeriesCreditSync.OnFileRenamed`/`UpdateManagedItemSeriesForCredit`와 같은 이유로 동일한 순서 문제가 있음). 즉 1층 훅이 실행되는 시점에는 `actor.Credits`가 **아직 옛 값 그대로**라 `RefreshCreditsPanel`을 호출해도 화면에 변화가 없었다 — 이게 실제로 재현되어 확인된 버그다. 해결을 위해 `ActorManagerWindow`/`SeriesManagerWindow`가 **현재 선택된 `ActorItem`/`SeriesItem` 자신의 `PropertyChanged`도 직접 구독**해 `Credits`가 바뀌면 `RefreshCreditsPanel`을 호출한다. 선택이 바뀔 때마다 이전 선택 대상 구독을 해제하고 새 선택 대상을 구독하는 "구독 교체" 패턴(`_subscribedCreditsActor`/`_subscribedCreditsSeries` 필드, `RefreshThumbnailPreview`/`RefreshCreditsPanel` 시작 부분에서 처리)을 쓴다 — 선택이 `null`이 되는 경우(시리즈)도 놓치지 않도록 이 구독 교체 로직은 `series is null` 조기 반환보다 먼저 실행된다.
   - **검증**: 실제 사용자 데이터(배우 "Suzumura Airi", 품번 "abp-197")로 재현 — 배우 관리 창을 열어 Suzumura Airi를 선택해 Credits에 `abp-163`/`abp-197`/`abp-383`이 보이는 상태를 만든 뒤, 그 창을 닫지 않고 속성 창에서 abp-197.avi의 배우 칩(Suzumura Airi)을 제거·확인하면, 배우 관리 창을 전혀 건드리지 않았는데도 Credits 목록에서 `abp-197`이 즉시 사라짐을 스크린샷으로 확인함(검증 후 실제 데이터는 원래 상태로 복원함).
 - **적용 범위 밖(의도적으로 남겨둔 부분)**: `PropertiesWindow` 자신이 표시 중인 태그 체크박스/배우 콤보박스/배우 칩은, 그 창이 열려 있는 동안 **다른** 창에서 마스터 목록(태그/배우 이름)이나 이 항목의 `Tags`/`Actors`가 외부에서 바뀌어도 자동으로 다시 그려지지 않는다(스냅샷이라 라이브 반영 안 됨) — 동시에 같은 항목을 여러 창에서 편집하는 경우는 드물고, 잘못하면 사용자가 입력 중인 내용을 덮어써버릴 위험이 더 크다고 판단해 범위에서 제외했다. 창을 닫았다 다시 열면(또는 그 창이 "배우 관리 창에서 돌아왔을 때"처럼 자기 자신의 `Closed` 콜백을 갖는 경우는) 항상 최신 상태로 다시 그려진다.
+
+### 앱 단일 인스턴스 (작업표시줄 재실행 시 활성화)
+
+작업표시줄(핀 고정 등)에서 아이콘을 클릭해 앱을 다시 실행해도 새 프로세스/새 창이 또 뜨지 않고, 이미 실행 중인 인스턴스의 메인 창이 앞으로 나와 활성화된다(2026-08-22 추가, **구현 완료**, 사용자 요청). 이건 위 "창 관리 정책"(주요 창 4~5개끼리의 규칙)과는 다른 층위 — `MainWindow` 자신을 포함한 **프로세스 전체**에 대한 정책이라 `App.xaml.cs`에 구현했다.
+
+- **감지**: `App.OnStartup`에서 이름 있는 `Mutex`(`"VideoVault_SingleInstance_2E1B7F3A"`)를 `initiallyOwned: true`로 생성한다. `out isNewInstance`가 `false`면(이미 같은 이름의 뮤텍스를 다른 프로세스가 쥐고 있음) 이 프로세스가 두 번째 인스턴스라는 뜻이다.
+- **두 번째 인스턴스의 동작**: 창을 하나도 만들지 않는다(`App.xaml`의 `StartupUri="MainWindow.xaml"`이 평소엔 `OnStartup` 이후 자동으로 `MainWindow`를 띄우는데, `base.OnStartup(e)`를 호출하지 않고 `Environment.Exit(0)`으로 즉시 종료해 이 자동 생성 자체를 막는다). 종료 직전에 `Process.GetProcessesByName(현재 프로세스 이름)`로 자기 자신 말고 다른 VideoVault 프로세스를 찾아 그 `MainWindowHandle`에 Win32 `ShowWindowAsync(SW_RESTORE)` + `SetForegroundWindow`를 호출한다 — 최소화돼 있었으면 복원하고, 최소화가 아니라 단지 다른 창에 가려져 있었을 뿐이면 앞으로 가져온다.
+- **`SetForegroundWindow` 제약을 피하는 이유**: Windows는 보통 백그라운드 프로세스가 다른 프로세스의 창을 포그라운드로 강제로 가져오는 것을 막는다(포커스 강탈 방지). 하지만 여기서 이 호출을 하는 두 번째 프로세스는 **사용자가 방금 직접 아이콘을 클릭해서 막 실행시킨** 프로세스라, Windows가 이 프로세스에게 포그라운드 전환 권한을 이미 부여한 상태다 — 이 권한으로 다른(첫 번째 인스턴스의) 창을 활성화하는 것도 허용된다. 별도의 IPC(파이프 등)로 첫 번째 프로세스에게 "네가 직접 활성화해라"라고 부탁할 필요가 없다.
+- **뮤텍스 정리**: `App.OnExit`에서 `ReleaseMutex()` + `Dispose()`로 정리한다.
+- **검증**: 실행 중인 인스턴스를 최소화한 뒤 같은 exe를 다시 실행 → 두 번째 프로세스가 즉시 종료(프로세스 수 그대로 1개 유지)하고, 첫 번째 인스턴스의 `WindowVisualState`가 `Normal`로 복원되며 `GetForegroundWindow()`가 그 창 핸들과 일치함을 확인함.
+
+### 보조 창의 작업표시줄 숨김
+
+`MainWindow`와 보조 창(속성 창 등)이 동시에 열려 있을 때 작업표시줄 아이콘을 클릭하면 "메인 창/보조 창 중 무엇을 선택할지" 묻는 메뉴(플립/썸네일 미리보기 목록)가 뜨는 문제가 있었다(2026-08-22 수정, **구현 완료**, 사용자 리포트) — Owner가 있는 창이라도 WPF는 기본적으로(`ShowInTaskbar` 기본값 `true`) 각자 별도의 작업표시줄 항목을 갖고, Windows는 같은 프로세스의 창들을 아이콘 하나로 묶어 보여주되 그 안에서 선택하게 한다. `MainWindow`를 제외한 **Owner가 있는 모든 창**(`FolderListWindow`/`PropertiesWindow`/`ActorManagerWindow`/`TagManagerWindow`/`SeriesManagerWindow` 5개 주요 창 + `RenameWindow`/`ActorInfoWindow`/`AddCreditWindow`/`OriginalImageWindow` 소형 대화상자 4개, 총 9개 — 위 "창 관리 정책"의 주요/소형 구분과 무관하게 전부 대상) XAML 루트에 `ShowInTaskbar="False"`를 추가해, 이 창들이 작업표시줄에 아예 나타나지 않게 했다. 그 결과 작업표시줄에는 항상 `MainWindow` 하나만 있고, 클릭하면 곧바로 그 창이 활성화된다(선택 메뉴 자체가 뜨지 않음). 창 자체의 기능(모덜리스로 열림, Owner 위에 겹쳐 보임, Alt+F4 등)은 이 속성과 무관하게 그대로 동작한다.
+
+- **검증**: `PropertiesWindow`를 연 상태에서 `Win32 GetWindowLong(GWL_EXSTYLE)`로 확인 — `PropertiesWindow`는 (WPF가 `ShowInTaskbar="False"`일 때 내부적으로 설정하는) `WS_EX_TOOLWINDOW`가 붙어 UI Automation의 최상위 창 목록(`AutomationElement.RootElement`의 자식, 작업표시줄/Alt+Tab이 열거하는 것과 같은 목록)에서 아예 빠지는 반면, `MainWindow`는 정상적으로 그 목록에 남아있음을 확인했다.
 
 ### 창 스냅(자석 붙기)
 

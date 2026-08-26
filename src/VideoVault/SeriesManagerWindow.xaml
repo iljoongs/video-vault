@@ -6,7 +6,8 @@
         xmlns:local="clr-namespace:VideoVault"
         mc:Ignorable="d"
         Title="시리즈 관리" Height="700" Width="450"
-        WindowStartupLocation="CenterOwner">
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
     <Window.Resources>
         <!-- Credits 칩: 배우 관리 창의 Credits 칩과 같은 모양(둥근 배경, 패딩)에 관리 리스트 보유 여부에 따라 색만 다르게 -->
         <Style x:Key="CreditChipBorderStyle" TargetType="Border">

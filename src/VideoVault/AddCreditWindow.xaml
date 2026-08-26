@@ -6,7 +6,8 @@
         xmlns:local="clr-namespace:VideoVault"
         mc:Ignorable="d"
         Title="작품 추가" Height="520" Width="420"
-        WindowStartupLocation="CenterOwner">
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
     <Window.Resources>
         <local:ThumbnailPathConverter x:Key="ThumbnailPathConverter"/>
     </Window.Resources>

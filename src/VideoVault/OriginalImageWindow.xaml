@@ -6,6 +6,7 @@
         mc:Ignorable="d"
         Title="원본 이미지" Height="800" Width="1000"
         WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
         Background="Black"
         MouseLeftButtonUp="Window_MouseLeftButtonUp">
     <Image x:Name="OriginalImage" Stretch="Uniform" Margin="10"/>

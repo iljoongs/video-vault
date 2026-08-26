@@ -94,7 +94,7 @@ video-vault/
 - `VideoVault.csproj` — 프로젝트 파일 (빌드 후 자동 서명 타겟 포함 — [코드 서명](#코드-서명-로컬-개발용) 참고, 앱 아이콘(`ApplicationIcon`) 지정 포함 — [앱 아이콘](#앱-아이콘) 참고)
 - `Sign-Build.ps1` — 빌드 결과물(exe/dll)에 로컬 개발용 인증서로 서명하는 스크립트
 - `Assets/AppIcon.ico` — 앱 아이콘 (16/32/48/256px PNG-압축 아이콘을 담은 `.ico`) — [앱 아이콘](#앱-아이콘) 참고
-- `App.xaml` / `App.xaml.cs` — 애플리케이션 진입점
+- `App.xaml` / `App.xaml.cs` — 애플리케이션 진입점. 앱 단일 인스턴스(작업표시줄 재실행 시 기존 창 활성화) 처리도 여기 있다 → [공통 관리](doc/common-management.md)
 - `MainWindow.xaml` / `MainWindow.xaml.cs` — 메인 윈도우 (관리 리스트 UI, 정렬/필터/썸네일 로직). 폴더 목록은 `FolderListWindow` 서브 창으로 분리되어 있다 → 상세: [동영상 파일 관리](doc/video-file-management.md)
 - `FolderListWindow.xaml` / `FolderListWindow.xaml.cs` — 폴더를 열어 동영상 파일을 스캔하고 관리 리스트에 추가하는 서브 창 → [동영상 파일 관리](doc/video-file-management.md)
 - `VideoFileItem.cs` — 폴더 목록(임시 스캔 결과) 항목 모델 → [동영상 파일 관리](doc/video-file-management.md)
