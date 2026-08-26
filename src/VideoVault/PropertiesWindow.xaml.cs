@@ -3,7 +3,10 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media;
 using Microsoft.Win32;
 
 namespace VideoVault;
@@ -606,6 +609,77 @@ public partial class PropertiesWindow : Window
 
         _selectedActors.Add(actor.Name);
         RefreshSelectedActorsThumbnails();
+    }
+
+    /// <summary>
+    /// 배우 콤보박스 드롭다운을 열 때마다, 마우스 휠 한 번에 <see cref="SystemParameters.WheelScrollLines"/>
+    /// (기본 3줄)만큼 움직이는 기본 동작 대신 한 칸(항목 하나)씩만 움직이도록 내부 <see cref="ScrollViewer"/>에
+    /// 휠 이벤트를 직접 처리하는 핸들러를 연결한다(2026-08-26 추가, 사용자 요청) — 썸네일 포함 항목 높이가 커서
+    /// 기본 동작대로면 한 번 스크롤할 때 여러 항목이 한꺼번에 넘어가 버린다.
+    /// </summary>
+    private void ActorComboBox_DropDownOpened(object sender, EventArgs e)
+    {
+        ActorComboBox.ApplyTemplate();
+        if (ActorComboBox.Template.FindName("PART_Popup", ActorComboBox) is not Popup { Child: FrameworkElement popupContent })
+        {
+            return;
+        }
+
+        if (FindVisualChild<ScrollViewer>(popupContent) is not { } scrollViewer)
+        {
+            return;
+        }
+
+        // 팝업을 열 때마다 같은 ScrollViewer 인스턴스가 재사용될 수 있어, 먼저 해제한 뒤 다시 구독해 중복을 막는다.
+        scrollViewer.PreviewMouseWheel -= ActorComboBoxScrollViewer_PreviewMouseWheel;
+        scrollViewer.PreviewMouseWheel += ActorComboBoxScrollViewer_PreviewMouseWheel;
+    }
+
+    /// <summary>
+    /// 한 칸(항목 하나)만큼만 <see cref="ScrollViewer.ScrollToVerticalOffset"/>로 직접 옮긴다. 항목 높이는
+    /// <c>ExtentHeight / Items.Count</c>(모든 행이 같은 템플릿이라 균일함)로 직접 계산한다.
+    /// **왜 <see cref="ScrollViewer.LineUp"/>/<see cref="ScrollViewer.LineDown"/>이 아닌가**: 처음에는
+    /// <c>ComboBox.ItemsPanel</c>을 <c>VirtualizingStackPanel ScrollUnit="Item"</c>으로 지정하고
+    /// <c>LineUp()</c>/<c>LineDown()</c>을 호출했는데(가상화 패널이라 정확히 한 항목씩 움직임), 스크롤할
+    /// 때마다 컨테이너가 재생성되면서 드롭다운이 마우스 캡처를 잃고 저절로 닫혀버리는 부작용이 실제로
+    /// 재현됐다(1~2번째 스크롤은 우연히 괜찮아 보이다가 이후 스크롤에서 닫히는 등 간헐적이었음).
+    /// <see cref="ScrollViewer.ScrollToVerticalOffset"/>로 바꿔도 가상화 패널을 계속 쓰는 한 같은 문제가
+    /// 남아있었다 — 근본 원인은 호출 방식이 아니라 **가상화 자체**(스크롤할 때마다 컨테이너를 새로
+    /// 만들고/버리는 것)였다. 그래서 <c>ItemsPanel</c>을 가상화하지 않는 평범한 <c>StackPanel</c>로 바꿔
+    /// 컨테이너가 스크롤 중 전혀 재생성되지 않게 했다 — 배우 수가 수백 명 수준이라 비가상화로도 성능
+    /// 문제가 없다(다른 창의 단순 콤보박스들도 원래 비가상화).
+    /// </summary>
+    private void ActorComboBoxScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        var scrollViewer = (ScrollViewer)sender;
+        var itemCount = ActorComboBox.Items.Count;
+        if (itemCount == 0 || scrollViewer.ExtentHeight <= 0)
+        {
+            return;
+        }
+
+        var itemHeight = scrollViewer.ExtentHeight / itemCount;
+        scrollViewer.ScrollToVerticalOffset(scrollViewer.VerticalOffset + (e.Delta > 0 ? -itemHeight : itemHeight));
+        e.Handled = true;
+    }
+
+    private static T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T typed)
+            {
+                return typed;
+            }
+
+            if (FindVisualChild<T>(child) is { } found)
+            {
+                return found;
+            }
+        }
+
+        return null;
     }
 
     private void RemoveActorChip_Click(object sender, MouseButtonEventArgs e)
