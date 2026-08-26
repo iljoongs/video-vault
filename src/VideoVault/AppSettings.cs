@@ -59,4 +59,9 @@ public class AppSettings
     /// <summary>배우 관리 창에서 썸네일/작품 리스트 창(오른쪽 패널)의 마지막 가로 크기(px, 2026-08-27 추가).
     /// <see cref="ActorManagerWindow.RememberedRightPanelWidth"/> 참고.</summary>
     public double? ActorManagerRightPanelWidth { get; set; }
+
+    /// <summary>배우 관리 창 전체의 마지막 크기(px, 2026-08-27 추가). 위치(Left/Top)는 다른 주요 창들과 같이
+    /// <see cref="WindowPositions"/>에 저장되므로 여기서는 크기만 다룬다. <see cref="ActorManagerWindow.RememberedWindowWidth"/> 참고.</summary>
+    public double? ActorManagerWindowWidth { get; set; }
+    public double? ActorManagerWindowHeight { get; set; }
 }
