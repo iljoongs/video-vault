@@ -144,7 +144,7 @@
                         ToolTip="드래그 앤 드롭으로 썸네일 지정"
                         AllowDrop="True" Drop="ThumbnailViewer_Drop" DragOver="ThumbnailViewer_DragOver">
                     <Grid>
-                        <Image x:Name="ThumbnailImage" Stretch="UniformToFill" Visibility="Collapsed"/>
+                        <Image x:Name="ThumbnailImage" Stretch="Uniform" Visibility="Collapsed"/>
                         <TextBlock x:Name="ThumbnailFallbackIcon" Text="👤" FontSize="36" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Grid>
                 </Border>
