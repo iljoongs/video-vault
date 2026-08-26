@@ -103,7 +103,43 @@
                 <StackPanel Grid.Row="5" Margin="0,0,0,8">
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
                         <TextBlock Text="배우:" Width="45" VerticalAlignment="Center"/>
-                        <ComboBox x:Name="ActorComboBox" Width="220" DisplayMemberPath="Name" Margin="0,0,5,0"/>
+                        <ComboBox x:Name="ActorComboBox" Width="220" Margin="0,0,5,0" MaxDropDownHeight="400">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" Margin="0,2">
+                                        <Border Width="36" Height="36" Margin="0,0,6,0" Background="#F0F0F0" BorderBrush="Gray" BorderThickness="1">
+                                            <Grid>
+                                                <Image Source="{Binding ThumbnailPath, Converter={StaticResource ThumbnailPathConverter}}" Stretch="UniformToFill">
+                                                    <Image.Style>
+                                                        <Style TargetType="Image">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasThumbnail}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Image.Style>
+                                                </Image>
+                                                <TextBlock Text="👤" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasThumbnail}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Grid>
+                                        </Border>
+                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
                         <Button Content="추가" Padding="8,3" Click="AddActor_Click"/>
                     </StackPanel>
                     <ItemsControl x:Name="SelectedActorsList" Margin="45,0,0,0">
