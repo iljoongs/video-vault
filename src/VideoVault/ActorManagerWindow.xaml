@@ -39,9 +39,9 @@
     </Window.Resources>
     <Grid Margin="10">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="20"/>
-            <ColumnDefinition Width="220"/>
+            <ColumnDefinition Width="*" MinWidth="300"/>
+            <ColumnDefinition Width="6"/>
+            <ColumnDefinition x:Name="RightPanelColumn" Width="220" MinWidth="150" MaxWidth="600"/>
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
@@ -49,6 +49,10 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
+
+        <!-- 썸네일/작품 리스트 창(오른쪽 패널)의 가로 크기를 조절하는 스플리터(2026-08-27 추가, 사용자 요청). -->
+        <GridSplitter Grid.Column="1" Grid.Row="0" Grid.RowSpan="4" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                      Background="#DDDDDD" Cursor="SizeWE" ResizeBehavior="PreviousAndNext"/>
 
         <!-- 아이콘 보기: 배우 이름과 썸네일만 보여준다 -->
         <ListBox x:Name="ActorsListBox" Grid.Row="0" Grid.Column="0" Margin="0,0,0,10"
@@ -118,40 +122,53 @@
 
         <Button Grid.Row="3" Grid.Column="0" Content="닫기" Width="80" HorizontalAlignment="Right" Click="Close_Click"/>
 
-        <!-- 오른쪽: 선택된 배우의 썸네일 (100x100, 원본은 별도로 보관하지 않음) -->
-        <StackPanel Grid.Row="0" Grid.RowSpan="4" Grid.Column="2" VerticalAlignment="Top">
-            <TextBlock Text="썸네일" FontWeight="Bold" Margin="0,0,0,5"/>
-            <TextBlock x:Name="ThumbnailPathText" Text="지정된 썸네일 없음" Foreground="Gray" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,5"/>
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                <Button Content="썸네일 추가" Padding="8,3" Margin="0,0,5,0" Click="AddThumbnailButton_Click"/>
-                <Button Content="썸네일 삭제" Padding="8,3" Click="DeleteThumbnailButton_Click"/>
-            </StackPanel>
-            <Border Width="100" Height="100" HorizontalAlignment="Left" Background="#F0F0F0" BorderBrush="Gray" BorderThickness="1"
-                    ToolTip="드래그 앤 드롭으로 썸네일 지정"
-                    AllowDrop="True" Drop="ThumbnailViewer_Drop" DragOver="ThumbnailViewer_DragOver">
-                <Grid>
-                    <Image x:Name="ThumbnailImage" Stretch="UniformToFill" Visibility="Collapsed"/>
-                    <TextBlock x:Name="ThumbnailFallbackIcon" Text="👤" FontSize="36" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        <!-- 오른쪽: 선택된 배우의 썸네일(원본은 별도로 보관하지 않음) + Credits(작품 리스트). 썸네일 블록은
+             내용에 맞는 높이(Auto)만 차지하고, 작품 리스트는 남는 세로 공간을 전부 채운다(2026-08-27 변경,
+             사용자 요청 — "작품 리스트를 현재 창 기준으로 세로 크기를 최대로"). 가로 크기는 왼쪽의
+             GridSplitter로 오른쪽 패널(이 Grid.Column="2") 전체 폭을 조절하면 썸네일 뷰어도 함께 넓어진다
+             (Border가 HorizontalAlignment="Stretch"). -->
+        <Grid Grid.Row="0" Grid.RowSpan="4" Grid.Column="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0">
+                <TextBlock Text="썸네일" FontWeight="Bold" Margin="0,0,0,5"/>
+                <TextBlock x:Name="ThumbnailPathText" Text="지정된 썸네일 없음" Foreground="Gray" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,5"/>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                    <Button Content="썸네일 추가" Padding="8,3" Margin="0,0,5,0" Click="AddThumbnailButton_Click"/>
+                    <Button Content="썸네일 삭제" Padding="8,3" Click="DeleteThumbnailButton_Click"/>
+                </StackPanel>
+                <Border Height="150" HorizontalAlignment="Stretch" Background="#F0F0F0" BorderBrush="Gray" BorderThickness="1"
+                        ToolTip="드래그 앤 드롭으로 썸네일 지정"
+                        AllowDrop="True" Drop="ThumbnailViewer_Drop" DragOver="ThumbnailViewer_DragOver">
+                    <Grid>
+                        <Image x:Name="ThumbnailImage" Stretch="UniformToFill" Visibility="Collapsed"/>
+                        <TextBlock x:Name="ThumbnailFallbackIcon" Text="👤" FontSize="36" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <!-- 썸네일 정보 밑에 선택된 배우의 정보 표시 (우클릭 메뉴 "배우 정보 수정"으로 편집) -->
+                <TextBlock Text="배우 정보" FontWeight="Bold" Margin="0,15,0,5"/>
+                <TextBlock x:Name="ActorNameInfoText" TextWrapping="Wrap" Margin="0,0,0,3"/>
+                <TextBlock x:Name="ActorBirthYearInfoText" TextWrapping="Wrap" Margin="0,0,0,3"/>
+                <TextBlock x:Name="ActorHeightInfoText" TextWrapping="Wrap" Margin="0,0,0,3"/>
+                <TextBlock x:Name="ActorBodyInfoText" TextWrapping="Wrap" Margin="0,0,0,3"/>
+
+                <!-- 배우 정보 밑에 이 배우가 출연한 것으로 등록된 품번(Credits) 헤더. 목록 자체(진한 파란색=관리
+                     리스트에 실제 파일 있음)는 아래 Grid.Row="1"에서 남는 공간을 전부 채운다. -->
+                <Grid Margin="0,15,0,5">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Credits" FontWeight="Bold" VerticalAlignment="Center"/>
+                    <Button Grid.Column="1" Content="작품 추가" Padding="6,2" Click="AddCredit_Click"/>
                 </Grid>
-            </Border>
+            </StackPanel>
 
-            <!-- 썸네일 정보 밑에 선택된 배우의 정보 표시 (우클릭 메뉴 "배우 정보 수정"으로 편집) -->
-            <TextBlock Text="배우 정보" FontWeight="Bold" Margin="0,15,0,5"/>
-            <TextBlock x:Name="ActorNameInfoText" TextWrapping="Wrap" Margin="0,0,0,3"/>
-            <TextBlock x:Name="ActorBirthYearInfoText" TextWrapping="Wrap" Margin="0,0,0,3"/>
-            <TextBlock x:Name="ActorHeightInfoText" TextWrapping="Wrap" Margin="0,0,0,3"/>
-            <TextBlock x:Name="ActorBodyInfoText" TextWrapping="Wrap" Margin="0,0,0,3"/>
-
-            <!-- 배우 정보 밑에 이 배우가 출연한 것으로 등록된 품번(Credits) 표시. 진한 파란색=관리 리스트에 실제 파일 있음 -->
-            <Grid Margin="0,15,0,5">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="Credits" FontWeight="Bold" VerticalAlignment="Center"/>
-                <Button Grid.Column="1" Content="작품 추가" Padding="6,2" Click="AddCredit_Click"/>
-            </Grid>
-            <ScrollViewer Height="300" VerticalScrollBarVisibility="Auto"
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
                           AllowDrop="True" DragOver="CreditsList_DragOver" Drop="CreditsList_Drop">
                 <ItemsControl x:Name="CreditsList">
                     <ItemsControl.ItemsPanel>
@@ -170,7 +187,7 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
             </ScrollViewer>
-        </StackPanel>
+        </Grid>
 
         <!-- 품번 칩에 마우스를 올리면 뜨는 썸네일 미리보기 팝업(2026-08-16 추가) — 큰 아이콘 보기 썸네일 크기(180x131)와 동일 -->
         <Popup x:Name="CreditThumbnailPopup" Placement="Mouse" HorizontalOffset="12" VerticalOffset="12"

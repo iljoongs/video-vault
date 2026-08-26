@@ -55,4 +55,8 @@ public class AppSettings
     /// <summary>"아이콘만 보기"(2026-08-16 추가) — 켜면 아이콘 보기 카드가 썸네일만 보여주고 텍스트 정보(품번/크기/
     /// 재생횟수/태그/시리즈)는 모두 숨기며, 카드 크기도 썸네일 크기에 딱 맞게 줄어든다. <see cref="IconCardFieldsSettings.IconOnly"/> 참고.</summary>
     public bool IconOnlyMode { get; set; }
+
+    /// <summary>배우 관리 창에서 썸네일/작품 리스트 창(오른쪽 패널)의 마지막 가로 크기(px, 2026-08-27 추가).
+    /// <see cref="ActorManagerWindow.RememberedRightPanelWidth"/> 참고.</summary>
+    public double? ActorManagerRightPanelWidth { get; set; }
 }

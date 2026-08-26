@@ -16,6 +16,12 @@ namespace VideoVault;
 /// </summary>
 public partial class ActorManagerWindow : Window
 {
+    /// <summary>썸네일/작품 리스트 창(오른쪽 패널)의 마지막 가로 크기(px)를 기억해둔다(2026-08-27 추가,
+    /// 사용자 요청) — <see cref="MainWindow"/>가 시작 시 <see cref="AppSettings.ActorManagerRightPanelWidth"/>에서
+    /// 불러와 이 필드를 채우고, 종료 시 다시 이 값을 읽어 저장한다(<see cref="WindowPositionMemory"/>와 같은
+    /// 방식이지만 창이 하나뿐이라 별도 Dictionary 없이 정적 프로퍼티 하나로 충분하다).</summary>
+    public static double? RememberedRightPanelWidth { get; set; }
+
     private readonly ObservableCollection<ActorItem> _masterActors;
     private readonly ObservableCollection<SeriesItem> _masterSeries;
     private readonly ObservableCollection<ManagedVideoItem> _managedItems;
@@ -26,6 +32,11 @@ public partial class ActorManagerWindow : Window
     {
         InitializeComponent();
         WindowSnapHelper.Attach(this);
+        if (RememberedRightPanelWidth is { } rememberedWidth)
+        {
+            RightPanelColumn.Width = new GridLength(rememberedWidth);
+        }
+
         _masterActors = masterActors;
         _masterSeries = masterSeries;
         _managedItems = managedItems;
@@ -56,6 +67,7 @@ public partial class ActorManagerWindow : Window
         _managedItems.CollectionChanged += ManagedItems_CollectionChanged;
         Closed += (_, _) =>
         {
+            RememberedRightPanelWidth = RightPanelColumn.ActualWidth;
             _managedItems.CollectionChanged -= ManagedItems_CollectionChanged;
             foreach (var item in _managedItems)
             {
