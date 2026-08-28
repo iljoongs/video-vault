@@ -46,12 +46,10 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- 썸네일/작품 리스트 창(오른쪽 패널)의 가로 크기를 조절하는 스플리터(2026-08-27 추가, 사용자 요청). -->
-        <GridSplitter Grid.Column="1" Grid.Row="0" Grid.RowSpan="4" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+        <GridSplitter Grid.Column="1" Grid.Row="0" Grid.RowSpan="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                       Background="#DDDDDD" Cursor="SizeWE" ResizeBehavior="PreviousAndNext"/>
 
         <!-- 아이콘 보기: 배우 이름과 썸네일만 보여준다 -->
@@ -110,24 +108,19 @@
         </ListBox>
 
         <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" Margin="0,0,0,10">
-            <TextBox x:Name="NewActorBox" Width="220" Margin="0,0,5,0"/>
-            <Button Content="추가" Padding="10,3" Click="Add_Click"/>
+            <TextBox x:Name="ActorBox" Width="180" Margin="0,0,5,0"/>
+            <Button Content="추가" Padding="8,3" Margin="0,0,5,0" Click="Add_Click"/>
+            <Button Content="변경" Padding="8,3" Margin="0,0,5,0" Click="Rename_Click"/>
+            <Button Content="삭제" Padding="8,3" Click="Delete_Click"/>
         </StackPanel>
 
-        <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal" Margin="0,0,0,10">
-            <TextBox x:Name="RenameBox" Width="150" Margin="0,0,5,0"/>
-            <Button Content="선택 배우 이름 변경" Padding="8,3" Margin="0,0,5,0" Click="Rename_Click"/>
-            <Button Content="선택 배우 삭제" Padding="8,3" Click="Delete_Click"/>
-        </StackPanel>
-
-        <Button Grid.Row="3" Grid.Column="0" Content="닫기" Width="80" HorizontalAlignment="Right" Click="Close_Click"/>
-
-        <!-- 오른쪽: 선택된 배우의 썸네일(원본은 별도로 보관하지 않음) + Credits(작품 리스트). 썸네일 블록은
-             내용에 맞는 높이(Auto)만 차지하고, 작품 리스트는 남는 세로 공간을 전부 채운다(2026-08-27 변경,
+        <!-- 오른쪽: 선택된 배우의 썸네일(원본은 별도로 보관하지 않음) + 품번(Credits) 리스트. 썸네일 블록은
+             내용에 맞는 높이(Auto)만 차지하고, 품번 리스트는 남는 세로 공간을 전부 채운다(2026-08-27 변경,
              사용자 요청 — "작품 리스트를 현재 창 기준으로 세로 크기를 최대로"). 가로 크기는 왼쪽의
-             GridSplitter로 오른쪽 패널(이 Grid.Column="2") 전체 폭을 조절하면 썸네일 뷰어도 함께 넓어진다
-             (Border가 HorizontalAlignment="Stretch"). -->
-        <Grid Grid.Row="0" Grid.RowSpan="4" Grid.Column="2">
+             GridSplitter로 오른쪽 패널(이 Grid.Column="2") 전체 폭을 조절할 수 있다. 왼쪽 여백(Margin의 첫 값)은
+             오른쪽 창 테두리 여백(바깥 Grid의 Margin="10")과 맞춰 10으로 뒀다(2026-08-27 추가, 사용자 요청 —
+             스플리터 자체는 여백 대상이 아니므로 스플리터와 오른쪽 패널 사이에만 이 여백이 들어간다). -->
+        <Grid Grid.Row="0" Grid.RowSpan="2" Grid.Column="2" Margin="10,0,0,0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
@@ -164,7 +157,7 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Credits" FontWeight="Bold" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="0" Text="품번" FontWeight="Bold" VerticalAlignment="Center"/>
                     <Button Grid.Column="1" Content="작품 추가" Padding="6,2" Click="AddCredit_Click"/>
                 </Grid>
             </StackPanel>

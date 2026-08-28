@@ -36,11 +36,9 @@
     <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="220"/> <!-- 0: 시리즈 리스트 (10줄) -->
-            <RowDefinition Height="Auto"/> <!-- 1: 시리즈 이름 입력 + 추가 -->
-            <RowDefinition Height="Auto"/> <!-- 2: 시리즈 삭제 + 작품 추가 -->
-            <RowDefinition Height="Auto"/> <!-- 3: 품번 헤더 -->
-            <RowDefinition Height="*"/>    <!-- 4: 품번 목록 -->
-            <RowDefinition Height="Auto"/> <!-- 5: 닫기 -->
+            <RowDefinition Height="Auto"/> <!-- 1: 시리즈 입력 + 추가/변경/삭제 -->
+            <RowDefinition Height="Auto"/> <!-- 2: 품번 헤더 + 추가 -->
+            <RowDefinition Height="*"/>    <!-- 3: 품번 목록 -->
         </Grid.RowDefinitions>
 
         <ListView x:Name="SeriesListBox" Grid.Row="0" Margin="0,0,0,10"
@@ -54,18 +52,22 @@
         </ListView>
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
-            <TextBox x:Name="NewSeriesBox" Width="220" Margin="0,0,5,0"/>
-            <Button Content="시리즈 추가" Padding="10,3" Margin="0,0,5,0" Click="AddSeries_Click"/>
-            <Button Content="시리즈 삭제" Padding="8,3" Click="DeleteSeries_Click"/>
+            <TextBox x:Name="SeriesBox" Width="180" Margin="0,0,5,0"/>
+            <Button Content="추가" Padding="8,3" Margin="0,0,5,0" Click="AddSeries_Click"/>
+            <Button Content="변경" Padding="8,3" Margin="0,0,5,0" Click="RenameSeries_Click"/>
+            <Button Content="삭제" Padding="8,3" Click="DeleteSeries_Click"/>
         </StackPanel>
 
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
-            <Button Content="작품 추가" Padding="8,3" Click="AddCredit_Click"/>
-        </StackPanel>
+        <Grid Grid.Row="2" Margin="0,0,0,5">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="품번" FontWeight="Bold" VerticalAlignment="Center"/>
+            <Button Grid.Column="1" Content="추가" Padding="6,2" Click="AddCredit_Click"/>
+        </Grid>
 
-        <TextBlock Grid.Row="3" Text="품번" FontWeight="Bold" Margin="0,0,0,5"/>
-
-        <ScrollViewer Grid.Row="4" VerticalScrollBarVisibility="Auto" Margin="0,0,0,10"
+        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" Margin="0,0,0,10"
                       AllowDrop="True" DragOver="CreditsList_DragOver" Drop="CreditsList_Drop">
             <ItemsControl x:Name="CreditsList">
                 <ItemsControl.ItemsPanel>
@@ -92,7 +94,5 @@
                 <Image x:Name="CreditThumbnailImage" Width="180" Height="131" Stretch="Uniform"/>
             </Border>
         </Popup>
-
-        <Button Grid.Row="5" Content="닫기" Width="80" HorizontalAlignment="Right" Click="Close_Click"/>
     </Grid>
 </Window>

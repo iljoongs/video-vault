@@ -141,7 +141,7 @@ public partial class SeriesManagerWindow : Window
 
     private void AddSeries_Click(object sender, RoutedEventArgs e)
     {
-        var name = NormalizeName(NewSeriesBox.Text);
+        var name = NormalizeName(SeriesBox.Text);
         if (name is null)
         {
             MessageBox.Show("시리즈 이름을 입력하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -156,10 +156,53 @@ public partial class SeriesManagerWindow : Window
 
         var newSeries = new SeriesItem { Name = name };
         _masterSeries.Add(newSeries);
-        NewSeriesBox.Clear();
+        SeriesBox.Clear();
 
         SeriesListBox.SelectedItem = newSeries;
         SeriesListBox.ScrollIntoView(newSeries);
+    }
+
+    /// <summary>시리즈 이름을 바꾸고, 이 시리즈를 참조 중인 관리 리스트 항목들의 <see cref="ManagedVideoItem.Series"/>도
+    /// 함께 갱신해 참조 무결성을 유지한다(2026-08-27 추가, 사용자 요청 — 예전에는 추가/삭제만 있고 이름 변경
+    /// 기능 자체가 없었다). 배우/태그 관리 창의 이름 변경과 같은 패턴이며, 시리즈는 썸네일 파일이 없으므로
+    /// `ActorManagerWindow.RenameActorAndSync`처럼 파일 rename까지 처리할 필요는 없다.</summary>
+    private void RenameSeries_Click(object sender, RoutedEventArgs e)
+    {
+        var series = SelectedSeries;
+        if (series is null)
+        {
+            MessageBox.Show("이름을 변경할 시리즈를 선택하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var newName = NormalizeName(SeriesBox.Text);
+        if (newName is null)
+        {
+            MessageBox.Show("새 시리즈 이름을 입력하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var oldName = series.Name;
+        if (!string.Equals(oldName, newName, StringComparison.OrdinalIgnoreCase) &&
+            _masterSeries.Any(s => string.Equals(s.Name, newName, StringComparison.OrdinalIgnoreCase)))
+        {
+            MessageBox.Show("이미 존재하는 시리즈 이름입니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        series.Name = newName;
+
+        foreach (var item in _managedItems)
+        {
+            if (string.Equals(item.Series, oldName, StringComparison.OrdinalIgnoreCase))
+            {
+                item.Series = newName;
+            }
+        }
+
+        SeriesBox.Clear();
+        _seriesView.Refresh();
+        RefreshCreditsPanel();
     }
 
     private void DeleteSeries_Click(object sender, RoutedEventArgs e)
@@ -464,6 +507,4 @@ public partial class SeriesManagerWindow : Window
         var trimmed = raw?.Trim();
         return string.IsNullOrEmpty(trimmed) ? null : trimmed;
     }
-
-    private void Close_Click(object sender, RoutedEventArgs e) => Close();
 }

@@ -161,7 +161,7 @@ public partial class ActorManagerWindow : Window
 
     private void Add_Click(object sender, RoutedEventArgs e)
     {
-        var name = NormalizeName(NewActorBox.Text);
+        var name = NormalizeName(ActorBox.Text);
         if (name is null)
         {
             MessageBox.Show("배우 이름을 입력하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -176,7 +176,7 @@ public partial class ActorManagerWindow : Window
 
         var newActor = new ActorItem { Name = name };
         _masterActors.Add(newActor);
-        NewActorBox.Clear();
+        ActorBox.Clear();
 
         ActorsListBox.SelectedItem = newActor;
         ActorsListBox.ScrollIntoView(newActor);
@@ -191,7 +191,7 @@ public partial class ActorManagerWindow : Window
             return;
         }
 
-        var newName = NormalizeName(RenameBox.Text);
+        var newName = NormalizeName(ActorBox.Text);
         if (newName is null)
         {
             MessageBox.Show("새 배우 이름을 입력하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -208,7 +208,7 @@ public partial class ActorManagerWindow : Window
 
         RenameActorAndSync(actor, newName);
 
-        RenameBox.Clear();
+        ActorBox.Clear();
         _actorsView.Refresh();
         RefreshThumbnailPreview();
     }
@@ -722,6 +722,4 @@ public partial class ActorManagerWindow : Window
         var trimmed = raw?.Trim();
         return string.IsNullOrEmpty(trimmed) ? null : trimmed;
     }
-
-    private void Close_Click(object sender, RoutedEventArgs e) => Close();
 }
