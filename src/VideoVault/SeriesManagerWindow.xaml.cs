@@ -399,7 +399,7 @@ public partial class SeriesManagerWindow : Window
         series.SetCredits(updated);
 
         var matches = _managedItems.Where(m =>
-            string.Equals(Path.GetFileNameWithoutExtension(m.FileName), code, StringComparison.OrdinalIgnoreCase));
+            string.Equals(Path.GetFileNameWithoutExtension(m.FileName), code, StringComparison.OrdinalIgnoreCase)).ToList();
         foreach (var item in matches)
         {
             if (string.IsNullOrEmpty(item.Series) || otherSeriesWithCode.Any(s => string.Equals(s.Name, item.Series, StringComparison.OrdinalIgnoreCase)))
@@ -409,7 +409,8 @@ public partial class SeriesManagerWindow : Window
         }
 
         RefreshCreditsPanel();
-        SetStatus($"'{code}' 품번을 추가했습니다.", StatusType.Success);
+        var fileConfirmedSuffix = matches.Count > 0 ? " (파일 확인)" : string.Empty;
+        SetStatus($"'{code}' 품번을 추가했습니다.{fileConfirmedSuffix}", StatusType.Success);
     }
 
     /// <summary>Credits 목록에 텍스트를 드래그 앤 드롭하면 그 텍스트를 품번으로 바로 추가한다(2026-08-15 추가) —
