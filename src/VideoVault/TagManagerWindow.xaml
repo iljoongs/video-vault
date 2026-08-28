@@ -11,23 +11,15 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <ListBox x:Name="TagsListBox" Grid.Row="0" Margin="0,0,0,10"/>
 
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
-            <TextBox x:Name="NewTagBox" Width="220" Margin="0,0,5,0"/>
-            <Button Content="추가" Padding="10,3" Click="Add_Click"/>
+        <StackPanel Grid.Row="1" Orientation="Horizontal">
+            <TextBox x:Name="TagBox" Width="180" Margin="0,0,5,0"/>
+            <Button Content="추가" Padding="8,3" Margin="0,0,5,0" Click="Add_Click"/>
+            <Button Content="변경" Padding="8,3" Margin="0,0,5,0" Click="Rename_Click"/>
+            <Button Content="삭제" Padding="8,3" Click="Delete_Click"/>
         </StackPanel>
-
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
-            <TextBox x:Name="RenameBox" Width="150" Margin="0,0,5,0"/>
-            <Button Content="선택 태그 이름 변경" Padding="8,3" Margin="0,0,5,0" Click="Rename_Click"/>
-            <Button Content="선택 태그 삭제" Padding="8,3" Click="Delete_Click"/>
-        </StackPanel>
-
-        <Button Grid.Row="3" Content="닫기" Width="80" HorizontalAlignment="Right" Click="Close_Click"/>
     </Grid>
 </Window>

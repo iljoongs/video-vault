@@ -29,7 +29,7 @@ public partial class TagManagerWindow : Window
 
     private void Add_Click(object sender, RoutedEventArgs e)
     {
-        var name = NormalizeTagName(NewTagBox.Text);
+        var name = NormalizeTagName(TagBox.Text);
         if (name is null)
         {
             MessageBox.Show("태그 이름을 입력하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -43,7 +43,7 @@ public partial class TagManagerWindow : Window
         }
 
         _masterTags.Add(name);
-        NewTagBox.Clear();
+        TagBox.Clear();
 
         TagsListBox.SelectedItem = name;
         TagsListBox.ScrollIntoView(name);
@@ -57,7 +57,7 @@ public partial class TagManagerWindow : Window
             return;
         }
 
-        var newName = NormalizeTagName(RenameBox.Text);
+        var newName = NormalizeTagName(TagBox.Text);
         if (newName is null)
         {
             MessageBox.Show("새 태그 이름을 입력하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -84,7 +84,7 @@ public partial class TagManagerWindow : Window
             }
         }
 
-        RenameBox.Clear();
+        TagBox.Clear();
         _tagsView.Refresh();
     }
 
@@ -124,6 +124,4 @@ public partial class TagManagerWindow : Window
         var trimmed = raw?.Trim();
         return string.IsNullOrEmpty(trimmed) ? null : trimmed;
     }
-
-    private void Close_Click(object sender, RoutedEventArgs e) => Close();
 }
