@@ -149,6 +149,10 @@ public partial class ActorManagerWindow : Window
 
     private ActorItem? SelectedActor => ActorsListBox.SelectedItem as ActorItem;
 
+    /// <summary>단순 안내/오류/성공 메시지를 대화상자 대신 하단 상태바에 표시한다(2026-08-29 추가, 사용자 요청) —
+    /// 실제 사용자 결정이 필요한 Yes/No 확인은 여전히 MessageBox.Show를 그대로 쓴다.</summary>
+    private void SetStatus(string message) => StatusText.Text = message;
+
     private class CreditChip
     {
         public string Code { get; set; } = string.Empty;
@@ -164,13 +168,13 @@ public partial class ActorManagerWindow : Window
         var name = NormalizeName(ActorBox.Text);
         if (name is null)
         {
-            MessageBox.Show("배우 이름을 입력하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus("배우 이름을 입력하세요.");
             return;
         }
 
         if (_masterActors.Any(a => string.Equals(a.Name, name, StringComparison.OrdinalIgnoreCase)))
         {
-            MessageBox.Show("이미 존재하는 배우입니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus("이미 존재하는 배우입니다.");
             return;
         }
 
@@ -180,6 +184,7 @@ public partial class ActorManagerWindow : Window
 
         ActorsListBox.SelectedItem = newActor;
         ActorsListBox.ScrollIntoView(newActor);
+        SetStatus($"'{name}' 배우를 추가했습니다.");
     }
 
     private void Rename_Click(object sender, RoutedEventArgs e)
@@ -187,14 +192,14 @@ public partial class ActorManagerWindow : Window
         var actor = SelectedActor;
         if (actor is null)
         {
-            MessageBox.Show("이름을 변경할 배우를 선택하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus("이름을 변경할 배우를 선택하세요.");
             return;
         }
 
         var newName = NormalizeName(ActorBox.Text);
         if (newName is null)
         {
-            MessageBox.Show("새 배우 이름을 입력하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus("새 배우 이름을 입력하세요.");
             return;
         }
 
@@ -202,7 +207,7 @@ public partial class ActorManagerWindow : Window
         if (!string.Equals(oldName, newName, StringComparison.OrdinalIgnoreCase) &&
             _masterActors.Any(a => string.Equals(a.Name, newName, StringComparison.OrdinalIgnoreCase)))
         {
-            MessageBox.Show("이미 존재하는 배우 이름입니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus("이미 존재하는 배우 이름입니다.");
             return;
         }
 
@@ -211,6 +216,7 @@ public partial class ActorManagerWindow : Window
         ActorBox.Clear();
         _actorsView.Refresh();
         RefreshThumbnailPreview();
+        SetStatus($"'{oldName}' 배우를 '{newName}'(으)로 변경했습니다.");
     }
 
     /// <summary>
@@ -239,7 +245,7 @@ public partial class ActorManagerWindow : Window
         var actor = SelectedActor;
         if (actor is null)
         {
-            MessageBox.Show("삭제할 배우를 선택하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus("삭제할 배우를 선택하세요.");
             return;
         }
 
@@ -267,6 +273,7 @@ public partial class ActorManagerWindow : Window
 
         TryDeleteThumbnailFile(actor.ThumbnailPath);
         RefreshThumbnailPreview();
+        SetStatus($"'{actor.Name}' 배우를 삭제했습니다.");
     }
 
     private void ActorListItem_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
@@ -282,7 +289,7 @@ public partial class ActorManagerWindow : Window
         var actor = SelectedActor;
         if (actor is null)
         {
-            MessageBox.Show("정보를 수정할 배우를 선택하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus("정보를 수정할 배우를 선택하세요.");
             return;
         }
 
@@ -303,6 +310,7 @@ public partial class ActorManagerWindow : Window
 
         _actorsView.Refresh();
         RefreshThumbnailPreview();
+        SetStatus($"'{actor.Name}' 배우 정보를 수정했습니다.");
     }
 
     private void AddThumbnailButton_Click(object sender, RoutedEventArgs e)
@@ -310,7 +318,7 @@ public partial class ActorManagerWindow : Window
         var actor = SelectedActor;
         if (actor is null)
         {
-            MessageBox.Show("썸네일을 지정할 배우를 먼저 선택하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus("썸네일을 지정할 배우를 먼저 선택하세요.");
             return;
         }
 
@@ -331,19 +339,20 @@ public partial class ActorManagerWindow : Window
         var actor = SelectedActor;
         if (actor is null)
         {
-            MessageBox.Show("썸네일을 삭제할 배우를 먼저 선택하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus("썸네일을 삭제할 배우를 먼저 선택하세요.");
             return;
         }
 
         if (!actor.HasThumbnail)
         {
-            MessageBox.Show("삭제할 썸네일이 없습니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus("삭제할 썸네일이 없습니다.");
             return;
         }
 
         TryDeleteThumbnailFile(actor.ThumbnailPath);
         actor.ThumbnailPath = null;
         RefreshThumbnailPreview();
+        SetStatus("썸네일을 삭제했습니다.");
     }
 
     private void ThumbnailViewer_DragOver(object sender, DragEventArgs e)
@@ -367,12 +376,7 @@ public partial class ActorManagerWindow : Window
         }
         else
         {
-            MessageBox.Show(
-                "드롭한 항목에서 이미지를 찾지 못했습니다.\n" +
-                $"제공된 데이터 형식: {string.Join(", ", e.Data.GetFormats())}",
-                "썸네일 지정 실패",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+            SetStatus("드롭한 항목에서 이미지를 찾지 못했습니다.");
         }
     }
 
@@ -384,10 +388,11 @@ public partial class ActorManagerWindow : Window
             var destPath = Path.Combine(AppPaths.ActorsThumbnailDir, $"{SanitizeFileName(actor.Name)}.jpg");
             actor.ThumbnailPath = ThumbnailHelper.CreateActorThumbnail(sourceImagePath, destPath);
             RefreshThumbnailPreview();
+            SetStatus("썸네일을 지정했습니다.");
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"썸네일을 만들 수 없습니다.\n{ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+            SetStatus($"썸네일을 만들 수 없습니다: {ex.Message}");
         }
     }
 
@@ -502,7 +507,7 @@ public partial class ActorManagerWindow : Window
         var actor = SelectedActor;
         if (actor is null)
         {
-            MessageBox.Show("작품을 추가할 배우를 먼저 선택하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus("작품을 추가할 배우를 먼저 선택하세요.");
             return;
         }
 
@@ -514,7 +519,7 @@ public partial class ActorManagerWindow : Window
     {
         if (actor.Credits.Any(c => string.Equals(c, code, StringComparison.OrdinalIgnoreCase)))
         {
-            MessageBox.Show("이미 추가된 품번입니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus($"이미 추가된 품번입니다: '{code}'");
             return;
         }
 
@@ -522,6 +527,7 @@ public partial class ActorManagerWindow : Window
         actor.SetCredits(updated);
         UpdateManagedItemActorsForCredit(actor, code);
         RefreshCreditsPanel(actor);
+        SetStatus($"'{code}' 품번을 추가했습니다.");
     }
 
     /// <summary>Credits 목록에 텍스트를 드래그 앤 드롭하면 그 텍스트를 품번으로 바로 추가한다(2026-08-15 추가) —
@@ -563,7 +569,7 @@ public partial class ActorManagerWindow : Window
 
         if (match is null)
         {
-            MessageBox.Show("관리 리스트에 이 품번의 파일이 없습니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus("관리 리스트에 이 품번의 파일이 없습니다.");
             return;
         }
 
@@ -624,6 +630,7 @@ public partial class ActorManagerWindow : Window
         var updated = actor.Credits.Where(c => !string.Equals(c, code, StringComparison.OrdinalIgnoreCase)).ToList();
         actor.SetCredits(updated);
         RefreshCreditsPanel(actor);
+        SetStatus($"'{code}' 품번을 삭제했습니다.");
 
         e.Handled = true;
     }

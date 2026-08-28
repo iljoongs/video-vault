@@ -129,6 +129,10 @@ public partial class SeriesManagerWindow : Window
 
     private SeriesItem? SelectedSeries => SeriesListBox.SelectedItem as SeriesItem;
 
+    /// <summary>단순 안내/오류/성공 메시지를 대화상자 대신 하단 상태바에 표시한다(2026-08-29 추가, 사용자 요청) —
+    /// 실제 사용자 결정이 필요한 Yes/No 확인(삭제 확인, 다른 시리즈에서 옮길지 확인)은 여전히 MessageBox.Show를 그대로 쓴다.</summary>
+    private void SetStatus(string message) => StatusText.Text = message;
+
     private class CreditChip
     {
         public string Code { get; set; } = string.Empty;
@@ -144,13 +148,13 @@ public partial class SeriesManagerWindow : Window
         var name = NormalizeName(SeriesBox.Text);
         if (name is null)
         {
-            MessageBox.Show("시리즈 이름을 입력하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus("시리즈 이름을 입력하세요.");
             return;
         }
 
         if (_masterSeries.Any(s => string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase)))
         {
-            MessageBox.Show("이미 존재하는 시리즈입니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus("이미 존재하는 시리즈입니다.");
             return;
         }
 
@@ -160,6 +164,7 @@ public partial class SeriesManagerWindow : Window
 
         SeriesListBox.SelectedItem = newSeries;
         SeriesListBox.ScrollIntoView(newSeries);
+        SetStatus($"'{name}' 시리즈를 추가했습니다.");
     }
 
     /// <summary>시리즈 이름을 바꾸고, 이 시리즈를 참조 중인 관리 리스트 항목들의 <see cref="ManagedVideoItem.Series"/>도
@@ -171,14 +176,14 @@ public partial class SeriesManagerWindow : Window
         var series = SelectedSeries;
         if (series is null)
         {
-            MessageBox.Show("이름을 변경할 시리즈를 선택하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus("이름을 변경할 시리즈를 선택하세요.");
             return;
         }
 
         var newName = NormalizeName(SeriesBox.Text);
         if (newName is null)
         {
-            MessageBox.Show("새 시리즈 이름을 입력하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus("새 시리즈 이름을 입력하세요.");
             return;
         }
 
@@ -186,7 +191,7 @@ public partial class SeriesManagerWindow : Window
         if (!string.Equals(oldName, newName, StringComparison.OrdinalIgnoreCase) &&
             _masterSeries.Any(s => string.Equals(s.Name, newName, StringComparison.OrdinalIgnoreCase)))
         {
-            MessageBox.Show("이미 존재하는 시리즈 이름입니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus("이미 존재하는 시리즈 이름입니다.");
             return;
         }
 
@@ -203,6 +208,7 @@ public partial class SeriesManagerWindow : Window
         SeriesBox.Clear();
         _seriesView.Refresh();
         RefreshCreditsPanel();
+        SetStatus($"'{oldName}' 시리즈를 '{newName}'(으)로 변경했습니다.");
     }
 
     private void DeleteSeries_Click(object sender, RoutedEventArgs e)
@@ -210,7 +216,7 @@ public partial class SeriesManagerWindow : Window
         var series = SelectedSeries;
         if (series is null)
         {
-            MessageBox.Show("삭제할 시리즈를 선택하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus("삭제할 시리즈를 선택하세요.");
             return;
         }
 
@@ -236,6 +242,7 @@ public partial class SeriesManagerWindow : Window
         }
 
         RefreshCreditsPanel();
+        SetStatus($"'{series.Name}' 시리즈를 삭제했습니다.");
     }
 
     /// <summary>
@@ -314,7 +321,7 @@ public partial class SeriesManagerWindow : Window
         var series = SelectedSeries;
         if (series is null)
         {
-            MessageBox.Show("작품을 추가할 시리즈를 먼저 선택하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus("작품을 추가할 시리즈를 먼저 선택하세요.");
             return;
         }
 
@@ -326,7 +333,7 @@ public partial class SeriesManagerWindow : Window
     {
         if (series.Credits.Any(c => string.Equals(c, code, StringComparison.OrdinalIgnoreCase)))
         {
-            MessageBox.Show("이미 추가된 품번입니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus($"이미 추가된 품번입니다: '{code}'");
             return;
         }
 
@@ -375,6 +382,7 @@ public partial class SeriesManagerWindow : Window
         }
 
         RefreshCreditsPanel();
+        SetStatus($"'{code}' 품번을 추가했습니다.");
     }
 
     /// <summary>Credits 목록에 텍스트를 드래그 앤 드롭하면 그 텍스트를 품번으로 바로 추가한다(2026-08-15 추가) —
@@ -416,7 +424,7 @@ public partial class SeriesManagerWindow : Window
 
         if (match is null)
         {
-            MessageBox.Show("관리 리스트에 이 품번의 파일이 없습니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            SetStatus("관리 리스트에 이 품번의 파일이 없습니다.");
             return;
         }
 
@@ -474,6 +482,7 @@ public partial class SeriesManagerWindow : Window
         var updated = series.Credits.Where(c => !string.Equals(c, code, StringComparison.OrdinalIgnoreCase)).ToList();
         series.SetCredits(updated);
         RefreshCreditsPanel();
+        SetStatus($"'{code}' 품번을 삭제했습니다.");
 
         e.Handled = true;
     }

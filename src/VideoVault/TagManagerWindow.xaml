@@ -38,6 +38,7 @@
             <RowDefinition Height="Auto"/> <!-- 1: 태그 입력 + 추가/변경/삭제 -->
             <RowDefinition Height="Auto"/> <!-- 2: 품번 헤더 + 추가 -->
             <RowDefinition Height="*"/>    <!-- 3: 품번 목록 -->
+            <RowDefinition Height="Auto"/> <!-- 4: 상태바 -->
         </Grid.RowDefinitions>
 
         <ListBox x:Name="TagsListBox" Grid.Row="0" Margin="0,0,0,10"
@@ -88,5 +89,10 @@
                 <Image x:Name="CreditThumbnailImage" Width="180" Height="131" Stretch="Uniform"/>
             </Border>
         </Popup>
+
+        <!-- 상태바(2026-08-29 추가) — 중복 품번 등 단순 안내 메시지와 성공 이벤트를 대화상자 대신 여기 표시 -->
+        <Border Grid.Row="4" BorderBrush="Gray" BorderThickness="0,1,0,0" Background="#F5F5F5" Padding="6,3" Margin="0,8,0,0">
+            <TextBlock x:Name="StatusText" FontSize="11" Foreground="#333333"/>
+        </Border>
     </Grid>
 </Window>

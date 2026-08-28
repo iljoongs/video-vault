@@ -46,6 +46,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- 썸네일/작품 리스트 창(오른쪽 패널)의 가로 크기를 조절하는 스플리터(2026-08-27 추가, 사용자 요청). -->
@@ -192,5 +193,11 @@
                 <Image x:Name="CreditThumbnailImage" Width="180" Height="131" Stretch="Uniform"/>
             </Border>
         </Popup>
+
+        <!-- 상태바(2026-08-29 추가) — 중복 품번 등 단순 안내 메시지와 성공 이벤트를 대화상자 대신 여기 표시 -->
+        <Border Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3" BorderBrush="Gray" BorderThickness="0,1,0,0"
+                Background="#F5F5F5" Padding="6,3" Margin="0,8,0,0">
+            <TextBlock x:Name="StatusText" FontSize="11" Foreground="#333333"/>
+        </Border>
     </Grid>
 </Window>
