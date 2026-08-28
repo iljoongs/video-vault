@@ -27,6 +27,12 @@ public partial class SeriesManagerWindow : Window
     {
         InitializeComponent();
         WindowSnapHelper.Attach(this);
+        if (WindowSizeMemory.TryGetSize(nameof(SeriesManagerWindow), out var rememberedWidth, out var rememberedHeight))
+        {
+            Width = rememberedWidth;
+            Height = rememberedHeight;
+        }
+
         _masterSeries = masterSeries;
         _masterTags = masterTags;
         _masterActors = masterActors;
@@ -59,6 +65,9 @@ public partial class SeriesManagerWindow : Window
         _managedItems.CollectionChanged += ManagedItems_CollectionChanged;
         Closed += (_, _) =>
         {
+            WindowSizeMemory.Remember(nameof(SeriesManagerWindow),
+                WindowState == WindowState.Normal ? Width : RestoreBounds.Width,
+                WindowState == WindowState.Normal ? Height : RestoreBounds.Height);
             _managedItems.CollectionChanged -= ManagedItems_CollectionChanged;
             foreach (var item in _managedItems)
             {

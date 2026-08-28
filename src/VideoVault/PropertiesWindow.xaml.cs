@@ -62,6 +62,12 @@ public partial class PropertiesWindow : Window
     {
         InitializeComponent();
         WindowSnapHelper.Attach(this);
+        if (WindowSizeMemory.TryGetSize(nameof(PropertiesWindow), out var rememberedWidth, out var rememberedHeight))
+        {
+            Width = rememberedWidth;
+            Height = rememberedHeight;
+        }
+
         _item = item;
         _masterTags = masterTags;
         _masterActors = masterActors;
@@ -81,7 +87,13 @@ public partial class PropertiesWindow : Window
         RefreshFileOperationAvailability();
 
         _item.PropertyChanged += ItemPropertyChanged;
-        Closed += (_, _) => _item.PropertyChanged -= ItemPropertyChanged;
+        Closed += (_, _) =>
+        {
+            _item.PropertyChanged -= ItemPropertyChanged;
+            WindowSizeMemory.Remember(nameof(PropertiesWindow),
+                WindowState == WindowState.Normal ? Width : RestoreBounds.Width,
+                WindowState == WindowState.Normal ? Height : RestoreBounds.Height);
+        };
     }
 
     /// <summary>

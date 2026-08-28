@@ -23,13 +23,6 @@ public partial class ActorManagerWindow : Window
     /// 방식이지만 창이 하나뿐이라 별도 Dictionary 없이 정적 프로퍼티 하나로 충분하다).</summary>
     public static double? RememberedRightPanelWidth { get; set; }
 
-    /// <summary>창 전체의 마지막 크기(px, 2026-08-27 추가, 사용자 요청) — 위치(Left/Top)는 이미
-    /// <see cref="SingleInstanceWindow{T}.Show"/>가 <see cref="WindowPositionMemory"/>로 기억해주지만, 크기는
-    /// 대상이 아니라서(그 클래스는 "주요 창" 5개 공통이라 위치만 다룸) 이 창만 별도로 기억한다. 저장/복원
-    /// 흐름은 <see cref="RememberedRightPanelWidth"/>와 동일한 패턴.</summary>
-    public static double? RememberedWindowWidth { get; set; }
-    public static double? RememberedWindowHeight { get; set; }
-
     private readonly ObservableCollection<ActorItem> _masterActors;
     private readonly ObservableCollection<SeriesItem> _masterSeries;
     private readonly ObservableCollection<ManagedVideoItem> _managedItems;
@@ -45,7 +38,7 @@ public partial class ActorManagerWindow : Window
             RightPanelColumn.Width = new GridLength(rememberedWidth);
         }
 
-        if (RememberedWindowWidth is { } rememberedWindowWidth && RememberedWindowHeight is { } rememberedWindowHeight)
+        if (WindowSizeMemory.TryGetSize(nameof(ActorManagerWindow), out var rememberedWindowWidth, out var rememberedWindowHeight))
         {
             Width = rememberedWindowWidth;
             Height = rememberedWindowHeight;
@@ -82,8 +75,9 @@ public partial class ActorManagerWindow : Window
         Closed += (_, _) =>
         {
             RememberedRightPanelWidth = RightPanelColumn.ActualWidth;
-            RememberedWindowWidth = WindowState == WindowState.Normal ? Width : RestoreBounds.Width;
-            RememberedWindowHeight = WindowState == WindowState.Normal ? Height : RestoreBounds.Height;
+            WindowSizeMemory.Remember(nameof(ActorManagerWindow),
+                WindowState == WindowState.Normal ? Width : RestoreBounds.Width,
+                WindowState == WindowState.Normal ? Height : RestoreBounds.Height);
             _managedItems.CollectionChanged -= ManagedItems_CollectionChanged;
             foreach (var item in _managedItems)
             {

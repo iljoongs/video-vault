@@ -60,8 +60,8 @@ public class AppSettings
     /// <see cref="ActorManagerWindow.RememberedRightPanelWidth"/> 참고.</summary>
     public double? ActorManagerRightPanelWidth { get; set; }
 
-    /// <summary>배우 관리 창 전체의 마지막 크기(px, 2026-08-27 추가). 위치(Left/Top)는 다른 주요 창들과 같이
-    /// <see cref="WindowPositions"/>에 저장되므로 여기서는 크기만 다룬다. <see cref="ActorManagerWindow.RememberedWindowWidth"/> 참고.</summary>
-    public double? ActorManagerWindowWidth { get; set; }
-    public double? ActorManagerWindowHeight { get; set; }
+    /// <summary>속성/태그 관리/배우 관리/시리즈 관리 창이 마지막으로 열려 있던 창 크기(2026-08-29 추가,
+    /// 사용자 요청). 위치(Left/Top)는 <see cref="WindowPositions"/>에 저장되므로 여기서는 크기(Width/Height)만
+    /// 다룬다. 키는 창 클래스 이름(예: "PropertiesWindow"), 값은 [Width, Height]. <see cref="WindowSizeMemory"/> 참고.</summary>
+    public Dictionary<string, double[]> WindowSizes { get; set; } = new();
 }

@@ -586,9 +586,8 @@ public partial class MainWindow : Window
         }
 
         WindowPositionMemory.LoadFrom(settings.WindowPositions);
+        WindowSizeMemory.LoadFrom(settings.WindowSizes);
         ActorManagerWindow.RememberedRightPanelWidth = settings.ActorManagerRightPanelWidth;
-        ActorManagerWindow.RememberedWindowWidth = settings.ActorManagerWindowWidth;
-        ActorManagerWindow.RememberedWindowHeight = settings.ActorManagerWindowHeight;
 
         var iconSize = Enum.TryParse<IconSize>(settings.IconSizePreset, out var parsedIconSize) ? parsedIconSize : IconSize.Normal;
         IconSizeSettings.Current.Apply(iconSize);
@@ -957,9 +956,8 @@ public partial class MainWindow : Window
                 ColumnWidths = GetColumnWidths(),
                 SelectedItemPath = GetSelectedManagedItem()?.FullPath,
                 WindowPositions = WindowPositionMemory.ToDictionary(),
+                WindowSizes = WindowSizeMemory.ToDictionary(),
                 ActorManagerRightPanelWidth = ActorManagerWindow.RememberedRightPanelWidth,
-                ActorManagerWindowWidth = ActorManagerWindow.RememberedWindowWidth,
-                ActorManagerWindowHeight = ActorManagerWindow.RememberedWindowHeight,
                 IconSizePreset = IconSizeSettings.Current.Preset.ToString(),
                 IconShowSize = IconCardFieldsSettings.Current.ShowSize,
                 IconShowPlayCount = IconCardFieldsSettings.Current.ShowPlayCount,

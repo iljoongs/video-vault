@@ -129,6 +129,7 @@ video-vault/
 - `SettingsRepository.cs` — 설정 JSON 파일 읽기/쓰기 로직 → [공통 관리](doc/common-management.md)
 - `SingleInstanceWindow.cs` — 창 종류별 단일 인스턴스 보장 헬퍼 → [공통 관리](doc/common-management.md)
 - `WindowPositionMemory.cs` — 주요 창의 마지막 화면 위치를 기억하는 저장소 → [공통 관리](doc/common-management.md)
+- `WindowSizeMemory.cs` — 속성/태그 관리/배우 관리/시리즈 관리 창의 마지막 크기(Width/Height)를 기억하는 저장소 (2026-08-29 추가) → [공통 관리](doc/common-management.md)
 - `WindowSnapHelper.cs` — 창 스냅(자석 붙기) 기능 → [공통 관리](doc/common-management.md)
 - `IconSizeSettings.cs` — 관리 리스트 아이콘 보기의 카드/썸네일/폰트 크기 프리셋 관리 → [동영상 파일 관리](doc/video-file-management.md)
 - `IconCardFieldsSettings.cs` — 아이콘 보기 카드에 표시할 정보 선택 상태 관리 → [동영상 파일 관리](doc/video-file-management.md)

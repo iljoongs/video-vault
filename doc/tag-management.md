@@ -15,6 +15,7 @@
   - **변경(이름 변경)**: 목록에서 바꿀 태그를 먼저 선택하고, `TagBox`에 새 이름을 입력한 뒤 "변경"을 누른다(`TagBox`는 자동으로 채워지지 않는다 — 추가와 같은 텍스트박스를 공유할 뿐, 선택한 태그의 현재 이름을 미리 채워주지는 않는다). 이름을 바꾸면(`tag.Name = newName`, `TagItem.PropertyChanged`가 알림) 이 태그를 사용 중인 관리 리스트의 모든 항목에도 변경된 이름이 반영된다(참조 무결성 유지). 이름이 바뀌면 정렬 위치도 바뀌어야 하므로 변경 후 `_tagsView.Refresh()`를 호출한다.
   - **삭제**: 목록에서 태그를 선택하고 "삭제"를 누르면(확인 대화상자 후) 마스터 목록에서 삭제되고, 이 태그를 사용 중인 관리 리스트 항목들에서도 해당 태그가 제거된다. `TagBox` 내용과는 무관하다.
 - **태그 동일성 판정 규칙**: 앞뒤 공백을 제거하고 대소문자를 구분하지 않는다 (`" Action "`, `"action"`, `"ACTION"`은 모두 같은 태그로 취급되어 중복 추가가 거부된다). 현재 `TagManagerWindow`의 중복 검사가 이 규칙으로 이미 구현되어 있다.
+- **창 크기/위치를 닫기 전 상태로 기억한다**(2026-08-29 추가, 구현 완료, 사용자 요청) — 위치(Left/Top)는 `WindowPositionMemory`, 크기(Width/Height)는 `WindowSizeMemory`(둘 다 [배우 관리](actor-management.md)/[시리즈 관리](series-management.md)/[속성 관리](properties-management.md)와 공유하는 공용 저장소)가 창 클래스 이름을 키로 기억한다. 생성자에서 `WindowSizeMemory.TryGetSize(nameof(TagManagerWindow), ...)`로 값이 있으면 적용하고, `Closed`에서 `WindowSizeMemory.Remember(...)`로 저장한다(최대화 상태로 닫았으면 `RestoreBounds` 사용). 프로그램을 재시작해도 유지된다(`settings.json`의 `AppSettings.WindowSizes`) → [공통 관리](common-management.md)의 "창 관리 정책" 규칙 4 참고.
 
 ## 품번(Credits) 패널 (`TagItem.Credits`, 2026-08-27 추가, 구현 완료, 사용자 요청)
 
