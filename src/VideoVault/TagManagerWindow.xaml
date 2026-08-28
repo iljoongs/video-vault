@@ -4,22 +4,87 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="태그 관리" Height="500" Width="400"
+        Title="태그 관리" Height="700" Width="450"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False">
+    <Window.Resources>
+        <!-- Credits 칩: 배우/시리즈 관리 창의 Credits 칩과 같은 모양(둥근 배경, 패딩)에 관리 리스트 보유 여부에 따라 색만 다르게 -->
+        <Style x:Key="CreditChipBorderStyle" TargetType="Border">
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="6,2"/>
+            <Setter Property="Margin" Value="0,0,4,4"/>
+            <Setter Property="Background" Value="#CFE2F3"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="ToolTip" Value="클릭하여 속성 열기 / 우클릭하여 Credits에서 삭제"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HasFile}" Value="True">
+                    <Setter Property="Background" Value="#3D6FB4"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="CreditChipTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="#1B3A5C"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HasFile}" Value="True">
+                    <Setter Property="Foreground" Value="White"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
     <Grid Margin="10">
         <Grid.RowDefinitions>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="220"/> <!-- 0: 태그 목록 -->
+            <RowDefinition Height="Auto"/> <!-- 1: 태그 입력 + 추가/변경/삭제 -->
+            <RowDefinition Height="Auto"/> <!-- 2: 품번 헤더 + 추가 -->
+            <RowDefinition Height="*"/>    <!-- 3: 품번 목록 -->
         </Grid.RowDefinitions>
 
-        <ListBox x:Name="TagsListBox" Grid.Row="0" Margin="0,0,0,10"/>
+        <ListBox x:Name="TagsListBox" Grid.Row="0" Margin="0,0,0,10"
+                 DisplayMemberPath="Name" SelectionChanged="TagsListBox_SelectionChanged"/>
 
-        <StackPanel Grid.Row="1" Orientation="Horizontal">
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
             <TextBox x:Name="TagBox" Width="180" Margin="0,0,5,0"/>
             <Button Content="추가" Padding="8,3" Margin="0,0,5,0" Click="Add_Click"/>
             <Button Content="변경" Padding="8,3" Margin="0,0,5,0" Click="Rename_Click"/>
             <Button Content="삭제" Padding="8,3" Click="Delete_Click"/>
         </StackPanel>
+
+        <Grid Grid.Row="2" Margin="0,0,0,5">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="품번" FontWeight="Bold" VerticalAlignment="Center"/>
+            <Button Grid.Column="1" Content="추가" Padding="6,2" Click="AddCredit_Click"/>
+        </Grid>
+
+        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto"
+                      AllowDrop="True" DragOver="CreditsList_DragOver" Drop="CreditsList_Drop">
+            <ItemsControl x:Name="CreditsList">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource CreditChipBorderStyle}" Tag="{Binding Code}"
+                                MouseLeftButtonUp="CreditChip_MouseLeftButtonUp" MouseRightButtonUp="CreditChip_MouseRightButtonUp"
+                                MouseEnter="CreditChip_MouseEnter" MouseLeave="CreditChip_MouseLeave">
+                            <TextBlock Text="{Binding Code}" Style="{StaticResource CreditChipTextStyle}"/>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <!-- 품번 칩에 마우스를 올리면 뜨는 썸네일 미리보기 팝업 — 배우/시리즈 관리 창과 동일한 크기(180x131) -->
+        <Popup x:Name="CreditThumbnailPopup" Placement="Mouse" HorizontalOffset="12" VerticalOffset="12"
+               AllowsTransparency="True" IsHitTestVisible="False" StaysOpen="True">
+            <Border Background="White" BorderBrush="Gray" BorderThickness="1" Padding="2">
+                <Image x:Name="CreditThumbnailImage" Width="180" Height="131" Stretch="Uniform"/>
+            </Border>
+        </Popup>
     </Grid>
 </Window>

@@ -25,7 +25,7 @@ public partial class MainWindow : Window
     private bool _suppressAutoSave;
 
     private readonly ObservableCollection<ManagedVideoItem> _managedItems = new();
-    private readonly ObservableCollection<string> _masterTags = new();
+    private readonly ObservableCollection<TagItem> _masterTags = new();
     private readonly ObservableCollection<ActorItem> _masterActors = new();
     private readonly ObservableCollection<SeriesItem> _masterSeries = new();
     private readonly ICollectionView _managedView;
@@ -83,7 +83,7 @@ public partial class MainWindow : Window
         ManagedListView.AddHandler(UIElement.PreviewMouseRightButtonUpEvent, new MouseButtonEventHandler(ManagedListHeader_RightClick), true);
 
         _managedItems.CollectionChanged += ManagedItems_CollectionChanged;
-        _masterTags.CollectionChanged += (_, _) => ScheduleTagsAutoSave();
+        _masterTags.CollectionChanged += MasterTags_CollectionChanged;
         _masterActors.CollectionChanged += MasterActors_CollectionChanged;
         _masterSeries.CollectionChanged += MasterSeries_CollectionChanged;
 
@@ -745,6 +745,29 @@ public partial class MainWindow : Window
         ManagedCountText.Text = $"(전체 {total} / 썸네일 {withThumbnail} / 제거됨 {removed})";
     }
 
+    private void MasterTags_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.NewItems is not null)
+        {
+            foreach (TagItem tag in e.NewItems)
+            {
+                tag.PropertyChanged += MasterTagItem_PropertyChanged;
+            }
+        }
+
+        if (e.OldItems is not null)
+        {
+            foreach (TagItem tag in e.OldItems)
+            {
+                tag.PropertyChanged -= MasterTagItem_PropertyChanged;
+            }
+        }
+
+        ScheduleTagsAutoSave();
+    }
+
+    private void MasterTagItem_PropertyChanged(object? sender, PropertyChangedEventArgs e) => ScheduleTagsAutoSave();
+
     private void MasterActors_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         if (e.NewItems is not null)
@@ -1011,7 +1034,7 @@ public partial class MainWindow : Window
 
     private void ManageTags_Click(object sender, RoutedEventArgs e)
     {
-        var window = new TagManagerWindow(_masterTags, _managedItems) { Owner = this };
+        var window = new TagManagerWindow(_masterTags, _masterActors, _masterSeries, _managedItems) { Owner = this };
         window.Closed += (_, _) => _managedView.Refresh();
         SingleInstanceWindow<TagManagerWindow>.Show(window);
     }
@@ -1454,8 +1477,9 @@ public partial class MainWindow : Window
     private void ShowTagFilterPopup(UIElement target)
     {
         _tagCheckItems = _masterTags
-            .OrderBy(t => t, StringComparer.OrdinalIgnoreCase)
-            .Select(t => new TagCheckItem { Tag = t, IsSelected = _selectedTags.Contains(t) })
+            .Select(t => t.Name)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .Select(name => new TagCheckItem { Tag = name, IsSelected = _selectedTags.Contains(name) })
             .ToList();
 
         TagFilterList.ItemsSource = _tagCheckItems;

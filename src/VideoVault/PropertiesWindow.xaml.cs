@@ -26,7 +26,7 @@ public partial class PropertiesWindow : Window
     private const string NoSeriesLabel = "(없음)";
 
     private ManagedVideoItem _item;
-    private readonly IEnumerable<string> _masterTags;
+    private readonly IEnumerable<TagItem> _masterTags;
     private readonly ObservableCollection<ActorItem> _masterActors;
     private readonly ObservableCollection<SeriesItem> _masterSeries;
     private readonly ObservableCollection<ManagedVideoItem> _managedItems;
@@ -58,7 +58,7 @@ public partial class PropertiesWindow : Window
     /// </summary>
     private bool _isNewItem;
 
-    public PropertiesWindow(ManagedVideoItem item, IEnumerable<string> masterTags, ObservableCollection<ActorItem> masterActors, ObservableCollection<SeriesItem> masterSeries, ObservableCollection<ManagedVideoItem> managedItems, bool isNewItem = false)
+    public PropertiesWindow(ManagedVideoItem item, IEnumerable<TagItem> masterTags, ObservableCollection<ActorItem> masterActors, ObservableCollection<SeriesItem> masterSeries, ObservableCollection<ManagedVideoItem> managedItems, bool isNewItem = false)
     {
         InitializeComponent();
         WindowSnapHelper.Attach(this);
@@ -280,8 +280,9 @@ public partial class PropertiesWindow : Window
     private void BuildTagList()
     {
         _tagItems = _masterTags
-            .OrderBy(t => t, StringComparer.OrdinalIgnoreCase)
-            .Select(t => new TagCheckItem { Tag = t, IsSelected = _item.Tags.Contains(t, StringComparer.OrdinalIgnoreCase) })
+            .Select(t => t.Name)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .Select(name => new TagCheckItem { Tag = name, IsSelected = _item.Tags.Contains(name, StringComparer.OrdinalIgnoreCase) })
             .ToList();
 
         TagsList.ItemsSource = _tagItems;

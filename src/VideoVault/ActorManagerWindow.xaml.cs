@@ -32,10 +32,10 @@ public partial class ActorManagerWindow : Window
     private readonly ObservableCollection<ActorItem> _masterActors;
     private readonly ObservableCollection<SeriesItem> _masterSeries;
     private readonly ObservableCollection<ManagedVideoItem> _managedItems;
-    private readonly IEnumerable<string> _masterTags;
+    private readonly IEnumerable<TagItem> _masterTags;
     private readonly ICollectionView _actorsView;
 
-    public ActorManagerWindow(ObservableCollection<ActorItem> masterActors, ObservableCollection<SeriesItem> masterSeries, ObservableCollection<ManagedVideoItem> managedItems, IEnumerable<string> masterTags, ActorItem? initialSelection = null)
+    public ActorManagerWindow(ObservableCollection<ActorItem> masterActors, ObservableCollection<SeriesItem> masterSeries, ObservableCollection<ManagedVideoItem> managedItems, IEnumerable<TagItem> masterTags, ActorItem? initialSelection = null)
     {
         InitializeComponent();
         WindowSnapHelper.Attach(this);

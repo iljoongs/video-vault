@@ -17,12 +17,12 @@ namespace VideoVault;
 public partial class SeriesManagerWindow : Window
 {
     private readonly ObservableCollection<SeriesItem> _masterSeries;
-    private readonly IEnumerable<string> _masterTags;
+    private readonly IEnumerable<TagItem> _masterTags;
     private readonly ObservableCollection<ActorItem> _masterActors;
     private readonly ObservableCollection<ManagedVideoItem> _managedItems;
     private readonly ICollectionView _seriesView;
 
-    public SeriesManagerWindow(ObservableCollection<SeriesItem> masterSeries, IEnumerable<string> masterTags, ObservableCollection<ActorItem> masterActors, ObservableCollection<ManagedVideoItem> managedItems)
+    public SeriesManagerWindow(ObservableCollection<SeriesItem> masterSeries, IEnumerable<TagItem> masterTags, ObservableCollection<ActorItem> masterActors, ObservableCollection<ManagedVideoItem> managedItems)
     {
         InitializeComponent();
         WindowSnapHelper.Attach(this);
