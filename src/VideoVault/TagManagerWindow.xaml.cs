@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Media;
 
 namespace VideoVault;
 
@@ -106,9 +107,26 @@ public partial class TagManagerWindow : Window
 
     private TagItem? SelectedTag => TagsListBox.SelectedItem as TagItem;
 
+    /// <summary>상태바 메시지의 종류(2026-08-29 추가, 사용자 요청 — "적당히 이쁘게 꾸며줘") — 종류별로
+    /// <see cref="SetStatus"/>가 아이콘과 글자색을 다르게 지정해서 한눈에 구분되게 한다.</summary>
+    private enum StatusType { Success, Warning, Info, Error }
+
     /// <summary>단순 안내/오류/성공 메시지를 대화상자 대신 하단 상태바에 표시한다(2026-08-29 추가, 사용자 요청) —
     /// 실제 사용자 결정이 필요한 Yes/No 확인은 여전히 MessageBox.Show를 그대로 쓴다.</summary>
-    private void SetStatus(string message) => StatusText.Text = message;
+    private void SetStatus(string message, StatusType type)
+    {
+        StatusText.Text = message;
+        (StatusIcon.Text, var color) = type switch
+        {
+            StatusType.Success => ("✓", "#2E7D32"),
+            StatusType.Warning => ("⚠", "#B26A00"),
+            StatusType.Error => ("✕", "#C62828"),
+            _ => ("ℹ", "#1565C0"),
+        };
+        var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
+        StatusIcon.Foreground = brush;
+        StatusText.Foreground = brush;
+    }
 
     private class CreditChip
     {
@@ -125,13 +143,13 @@ public partial class TagManagerWindow : Window
         var name = NormalizeTagName(TagBox.Text);
         if (name is null)
         {
-            SetStatus("태그 이름을 입력하세요.");
+            SetStatus("태그 이름을 입력하세요.", StatusType.Warning);
             return;
         }
 
         if (_masterTags.Any(t => string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase)))
         {
-            SetStatus("이미 존재하는 태그입니다.");
+            SetStatus("이미 존재하는 태그입니다.", StatusType.Warning);
             return;
         }
 
@@ -141,7 +159,7 @@ public partial class TagManagerWindow : Window
 
         TagsListBox.SelectedItem = newTag;
         TagsListBox.ScrollIntoView(newTag);
-        SetStatus($"'{name}' 태그를 추가했습니다.");
+        SetStatus($"'{name}' 태그를 추가했습니다.", StatusType.Success);
     }
 
     private void Rename_Click(object sender, RoutedEventArgs e)
@@ -149,14 +167,14 @@ public partial class TagManagerWindow : Window
         var tag = SelectedTag;
         if (tag is null)
         {
-            SetStatus("이름을 변경할 태그를 선택하세요.");
+            SetStatus("이름을 변경할 태그를 선택하세요.", StatusType.Warning);
             return;
         }
 
         var newName = NormalizeTagName(TagBox.Text);
         if (newName is null)
         {
-            SetStatus("새 태그 이름을 입력하세요.");
+            SetStatus("새 태그 이름을 입력하세요.", StatusType.Warning);
             return;
         }
 
@@ -164,7 +182,7 @@ public partial class TagManagerWindow : Window
         if (!string.Equals(oldName, newName, StringComparison.OrdinalIgnoreCase) &&
             _masterTags.Any(t => string.Equals(t.Name, newName, StringComparison.OrdinalIgnoreCase)))
         {
-            SetStatus("이미 존재하는 태그 이름입니다.");
+            SetStatus("이미 존재하는 태그 이름입니다.", StatusType.Warning);
             return;
         }
 
@@ -182,7 +200,7 @@ public partial class TagManagerWindow : Window
 
         TagBox.Clear();
         _tagsView.Refresh();
-        SetStatus($"'{oldName}' 태그를 '{newName}'(으)로 변경했습니다.");
+        SetStatus($"'{oldName}' 태그를 '{newName}'(으)로 변경했습니다.", StatusType.Success);
     }
 
     private void Delete_Click(object sender, RoutedEventArgs e)
@@ -190,7 +208,7 @@ public partial class TagManagerWindow : Window
         var tag = SelectedTag;
         if (tag is null)
         {
-            SetStatus("삭제할 태그를 선택하세요.");
+            SetStatus("삭제할 태그를 선택하세요.", StatusType.Warning);
             return;
         }
 
@@ -217,7 +235,7 @@ public partial class TagManagerWindow : Window
         }
 
         RefreshCreditsPanel(SelectedTag);
-        SetStatus($"'{tag.Name}' 태그를 삭제했습니다.");
+        SetStatus($"'{tag.Name}' 태그를 삭제했습니다.", StatusType.Success);
     }
 
     /// <summary>
@@ -309,7 +327,7 @@ public partial class TagManagerWindow : Window
         var tag = SelectedTag;
         if (tag is null)
         {
-            SetStatus("품번을 추가할 태그를 먼저 선택하세요.");
+            SetStatus("품번을 추가할 태그를 먼저 선택하세요.", StatusType.Warning);
             return;
         }
 
@@ -321,7 +339,7 @@ public partial class TagManagerWindow : Window
     {
         if (tag.Credits.Any(c => string.Equals(c, code, StringComparison.OrdinalIgnoreCase)))
         {
-            SetStatus($"이미 추가된 품번입니다: '{code}'");
+            SetStatus($"이미 추가된 품번입니다: '{code}'", StatusType.Warning);
             return;
         }
 
@@ -329,7 +347,7 @@ public partial class TagManagerWindow : Window
         tag.SetCredits(updated);
         UpdateManagedItemTagsForCredit(tag, code);
         RefreshCreditsPanel(tag);
-        SetStatus($"'{code}' 품번을 추가했습니다.");
+        SetStatus($"'{code}' 품번을 추가했습니다.", StatusType.Success);
     }
 
     /// <summary>품번 목록에 텍스트를 드래그 앤 드롭하면 그 텍스트를 품번으로 바로 추가한다 —
@@ -371,7 +389,7 @@ public partial class TagManagerWindow : Window
 
         if (match is null)
         {
-            SetStatus("관리 리스트에 이 품번의 파일이 없습니다.");
+            SetStatus("관리 리스트에 이 품번의 파일이 없습니다.", StatusType.Info);
             return;
         }
 
@@ -430,7 +448,7 @@ public partial class TagManagerWindow : Window
         var updated = tag.Credits.Where(c => !string.Equals(c, code, StringComparison.OrdinalIgnoreCase)).ToList();
         tag.SetCredits(updated);
         RefreshCreditsPanel(tag);
-        SetStatus($"'{code}' 품번을 삭제했습니다.");
+        SetStatus($"'{code}' 품번을 삭제했습니다.", StatusType.Success);
 
         e.Handled = true;
     }

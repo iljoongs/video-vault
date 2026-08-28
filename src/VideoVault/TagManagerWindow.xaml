@@ -90,9 +90,14 @@
             </Border>
         </Popup>
 
-        <!-- 상태바(2026-08-29 추가) — 중복 품번 등 단순 안내 메시지와 성공 이벤트를 대화상자 대신 여기 표시 -->
-        <Border Grid.Row="4" BorderBrush="Gray" BorderThickness="0,1,0,0" Background="#F5F5F5" Padding="6,3" Margin="0,8,0,0">
-            <TextBlock x:Name="StatusText" FontSize="11" Foreground="#333333"/>
+        <!-- 상태바(2026-08-29 추가, 2026-08-29 스타일 개선) — 중복 품번 등 단순 안내 메시지와 성공 이벤트를
+             대화상자 대신 여기 표시한다. 종류(성공/경고/정보/오류)에 따라 아이콘과 글자색이 달라진다
+             (코드에서 SetStatus가 색/아이콘을 함께 지정, 아래 참고). -->
+        <Border Grid.Row="4" CornerRadius="6" BorderBrush="#E0E0E0" BorderThickness="1" Background="#FAFAFA" Padding="10,6" Margin="0,10,0,0">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock x:Name="StatusIcon" FontSize="12" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                <TextBlock x:Name="StatusText" FontSize="11" VerticalAlignment="Center"/>
+            </StackPanel>
         </Border>
     </Grid>
 </Window>
