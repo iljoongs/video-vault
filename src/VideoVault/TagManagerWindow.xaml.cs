@@ -356,7 +356,11 @@ public partial class TagManagerWindow : Window
         tag.SetCredits(updated);
         UpdateManagedItemTagsForCredit(tag, code);
         RefreshCreditsPanel(tag);
-        SetStatus($"'{code}' 품번을 추가했습니다.", StatusType.Success);
+
+        var hasMatch = _managedItems.Any(m =>
+            string.Equals(Path.GetFileNameWithoutExtension(m.FileName), code, StringComparison.OrdinalIgnoreCase));
+        var fileConfirmedSuffix = hasMatch ? " (파일 확인)" : string.Empty;
+        SetStatus($"'{code}' 품번을 추가했습니다.{fileConfirmedSuffix}", StatusType.Success);
     }
 
     /// <summary>품번 목록에 텍스트를 드래그 앤 드롭하면 그 텍스트를 품번으로 바로 추가한다 —
