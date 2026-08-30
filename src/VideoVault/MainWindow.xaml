@@ -134,40 +134,60 @@
                                Foreground="Gray" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"/>
                 </StackPanel>
 
-                <!-- 선택된 항목의 썸네일 뷰어 (상단 오른쪽). 클릭하면 원본 이미지를 보여주고, 드래그 앤 드롭으로 썸네일을 지정할 수 있다. -->
-                <StackPanel x:Name="ThumbnailPanel" Grid.Row="0" Grid.RowSpan="7" Grid.Column="1"
-                            Width="320" Margin="15,0,0,0" VerticalAlignment="Top">
-                    <Border Width="320" Height="240" Background="#F0F0F0" BorderBrush="Gray" BorderThickness="1" Cursor="Hand"
-                            ToolTip="클릭: 원본 이미지 보기 / 드래그 앤 드롭: 썸네일 지정"
-                            AllowDrop="True" Drop="ThumbnailViewer_Drop" DragOver="ThumbnailViewer_DragOver"
-                            MouseLeftButtonUp="ThumbnailViewer_MouseLeftButtonUp">
-                        <Grid>
-                            <Image Source="{Binding ThumbnailPath, Converter={StaticResource ThumbnailPathConverter}}" Stretch="Uniform">
-                                <Image.Style>
-                                    <Style TargetType="Image">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasThumbnail}" Value="True">
-                                                <Setter Property="Visibility" Value="Visible"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Image.Style>
-                            </Image>
-                            <TextBlock Text="🎬" FontSize="64" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasThumbnail}" Value="True">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </Grid>
+                <!-- 빠른 보기 패널 + 선택된 항목의 썸네일 뷰어 (상단 오른쪽). 썸네일 뷰어는 클릭하면 원본 이미지를 보여주고, 드래그 앤 드롭으로 썸네일을 지정할 수 있다. -->
+                <StackPanel Grid.Row="0" Grid.RowSpan="7" Grid.Column="1" Orientation="Horizontal" Margin="15,0,0,0" VerticalAlignment="Top">
+                    <!-- 빠른 보기 패널(2026-08-31 추가, 사용자 요청): 모든 파일/삭제 파일/신규 파일 체크박스(OR로 결합되는 독립 필터) + 아이콘만 보기 -->
+                    <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,10,0" VerticalAlignment="Top">
+                        <StackPanel Width="100">
+                            <CheckBox x:Name="ShowAllFilesCheckBox" Content="모든 파일" Margin="0,0,0,6"
+                                      ToolTip="IsValid/IsExist 상태와 무관하게 모든 항목을 보여준다."
+                                      Checked="QuickViewFilterCheckBox_Changed" Unchecked="QuickViewFilterCheckBox_Changed"/>
+                            <CheckBox x:Name="ShowDeletedFilesCheckBox" Content="삭제 파일" Margin="0,0,0,6"
+                                      ToolTip="제거된(IsValid=false) 항목만 보여준다."
+                                      Checked="QuickViewFilterCheckBox_Changed" Unchecked="QuickViewFilterCheckBox_Changed"/>
+                            <CheckBox x:Name="ShowNewFilesCheckBox" Content="신규 파일" Margin="0,0,0,8"
+                                      ToolTip="아직 실제 파일을 보유하지 않은(IsExist=false) 항목만 보여준다."
+                                      Checked="QuickViewFilterCheckBox_Changed" Unchecked="QuickViewFilterCheckBox_Changed"/>
+                            <Border Height="1" Background="#E0E0E0" Margin="0,0,0,8"/>
+                            <CheckBox x:Name="IconOnlyModeCheckBox" Content="아이콘만 보기"
+                                      ToolTip="아이콘 보기에서 썸네일만 보여주고 카드 크기를 썸네일 크기에 맞게 줄인다."
+                                      Checked="IconOnlyModeCheckBox_Changed" Unchecked="IconOnlyModeCheckBox_Changed"/>
+                        </StackPanel>
                     </Border>
+
+                    <StackPanel x:Name="ThumbnailPanel" Width="320">
+                        <Border Width="320" Height="240" Background="#F0F0F0" BorderBrush="Gray" BorderThickness="1" Cursor="Hand"
+                                ToolTip="클릭: 원본 이미지 보기 / 드래그 앤 드롭: 썸네일 지정"
+                                AllowDrop="True" Drop="ThumbnailViewer_Drop" DragOver="ThumbnailViewer_DragOver"
+                                MouseLeftButtonUp="ThumbnailViewer_MouseLeftButtonUp">
+                            <Grid>
+                                <Image Source="{Binding ThumbnailPath, Converter={StaticResource ThumbnailPathConverter}}" Stretch="Uniform">
+                                    <Image.Style>
+                                        <Style TargetType="Image">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasThumbnail}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Image.Style>
+                                </Image>
+                                <TextBlock Text="🎬" FontSize="64" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasThumbnail}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
                 </StackPanel>
 
                 <!-- 저장/열기/다른 이름으로 저장 버튼은 삭제되었지만 기능은 유지된다 (파일 메뉴 + Ctrl+S) -->
@@ -180,8 +200,7 @@
                         <ComboBoxItem Content="보통 아이콘"/>
                         <ComboBoxItem Content="작은 아이콘"/>
                     </ComboBox>
-                    <CheckBox x:Name="ShowRemovedItemsCheckBox" Content="제거된 항목도 표시" VerticalAlignment="Center" Margin="0,0,15,0" Checked="ShowRemovedItemsCheckBox_Changed" Unchecked="ShowRemovedItemsCheckBox_Changed"/>
-                    <CheckBox x:Name="IconOnlyModeCheckBox" Content="아이콘만 보기" VerticalAlignment="Center" ToolTip="아이콘 보기에서 썸네일만 보여주고 카드 크기를 썸네일 크기에 맞게 줄인다." Checked="IconOnlyModeCheckBox_Changed" Unchecked="IconOnlyModeCheckBox_Changed"/>
+                    <CheckBox x:Name="ShowRemovedItemsCheckBox" Content="제거된 항목도 표시" VerticalAlignment="Center" Checked="ShowRemovedItemsCheckBox_Changed" Unchecked="ShowRemovedItemsCheckBox_Changed"/>
                 </StackPanel>
 
                 <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">

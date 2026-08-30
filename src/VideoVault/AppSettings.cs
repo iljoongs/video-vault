@@ -64,4 +64,10 @@ public class AppSettings
     /// 사용자 요청). 위치(Left/Top)는 <see cref="WindowPositions"/>에 저장되므로 여기서는 크기(Width/Height)만
     /// 다룬다. 키는 창 클래스 이름(예: "PropertiesWindow"), 값은 [Width, Height]. <see cref="WindowSizeMemory"/> 참고.</summary>
     public Dictionary<string, double[]> WindowSizes { get; set; } = new();
+
+    /// <summary>썸네일 뷰어 왼쪽의 빠른 보기 패널(2026-08-31 추가, 사용자 요청) — "모든 파일"/"삭제 파일"/
+    /// "신규 파일" 체크박스 상태. 셋 다 꺼짐이 기본값(기존 필터 동작 그대로 유지).</summary>
+    public bool QuickFilterAllFiles { get; set; }
+    public bool QuickFilterDeletedFiles { get; set; }
+    public bool QuickFilterNewFiles { get; set; }
 }

@@ -47,6 +47,9 @@ public partial class MainWindow : Window
     private HashSet<string> _selectedActorFilter = new(StringComparer.OrdinalIgnoreCase);
     private List<ActorFilterCheckItem> _actorFilterCheckItems = new();
     private bool _showRemovedItems;
+    private bool _quickFilterAllFiles;
+    private bool _quickFilterDeletedFiles;
+    private bool _quickFilterNewFiles;
 
     private string? _sortProperty;
     private bool _sortAscending = true;
@@ -564,6 +567,12 @@ public partial class MainWindow : Window
         _selectedActorFilter = new HashSet<string>(settings.SelectedActors, StringComparer.OrdinalIgnoreCase);
         _showRemovedItems = settings.ShowRemovedItems;
         ShowRemovedItemsCheckBox.IsChecked = _showRemovedItems;
+        _quickFilterAllFiles = settings.QuickFilterAllFiles;
+        ShowAllFilesCheckBox.IsChecked = _quickFilterAllFiles;
+        _quickFilterDeletedFiles = settings.QuickFilterDeletedFiles;
+        ShowDeletedFilesCheckBox.IsChecked = _quickFilterDeletedFiles;
+        _quickFilterNewFiles = settings.QuickFilterNewFiles;
+        ShowNewFilesCheckBox.IsChecked = _quickFilterNewFiles;
         _managedView.Refresh();
 
         ApplyVisibleColumns(settings.VisibleColumns);
@@ -951,6 +960,9 @@ public partial class MainWindow : Window
                 SelectedTags = _selectedTags.ToList(),
                 SelectedActors = _selectedActorFilter.ToList(),
                 ShowRemovedItems = _showRemovedItems,
+                QuickFilterAllFiles = _quickFilterAllFiles,
+                QuickFilterDeletedFiles = _quickFilterDeletedFiles,
+                QuickFilterNewFiles = _quickFilterNewFiles,
                 LastFolder = _currentFolder,
                 VisibleColumns = GetVisibleColumnKeys(),
                 ColumnWidths = GetColumnWidths(),
@@ -1549,6 +1561,23 @@ public partial class MainWindow : Window
         ScheduleSettingsAutoSave();
     }
 
+    /// <summary>썸네일 뷰어 왼쪽 패널의 "모든 파일"/"삭제 파일"/"신규 파일" 빠른 보기 체크박스(2026-08-31 추가).
+    /// 셋 다 꺼져 있으면 기존 필터(<see cref="_showRemovedItems"/> 등)가 그대로 적용되고, 하나라도 켜지면
+    /// 켜진 조건들을 OR로 묶어 <see cref="FilterManagedItem"/>의 유효성 검사를 대체한다.</summary>
+    private void QuickViewFilterCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!IsInitialized)
+        {
+            return;
+        }
+
+        _quickFilterAllFiles = ShowAllFilesCheckBox.IsChecked == true;
+        _quickFilterDeletedFiles = ShowDeletedFilesCheckBox.IsChecked == true;
+        _quickFilterNewFiles = ShowNewFilesCheckBox.IsChecked == true;
+        _managedView.Refresh();
+        ScheduleSettingsAutoSave();
+    }
+
     private void IconOnlyModeCheckBox_Changed(object sender, RoutedEventArgs e)
     {
         if (!IsInitialized)
@@ -1568,7 +1597,18 @@ public partial class MainWindow : Window
             return false;
         }
 
-        if (!item.IsValid && !_showRemovedItems)
+        var anyQuickFilter = _quickFilterAllFiles || _quickFilterDeletedFiles || _quickFilterNewFiles;
+        if (anyQuickFilter)
+        {
+            var matchesQuickFilter = _quickFilterAllFiles ||
+                (_quickFilterDeletedFiles && !item.IsValid) ||
+                (_quickFilterNewFiles && !item.IsExist);
+            if (!matchesQuickFilter)
+            {
+                return false;
+            }
+        }
+        else if (!item.IsValid && !_showRemovedItems)
         {
             return false;
         }
