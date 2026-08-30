@@ -344,6 +344,50 @@ public partial class TagManagerWindow : Window
         dialog.ShowDialog();
     }
 
+    /// <summary>"적용" 버튼(2026-08-31 추가, 사용자 요청) — 선택한 태그의 Credits 중 관리 리스트에 아직
+    /// 매칭되는 항목이 없는(연한 색 칩) 품번을 일괄로 "파일 없이 추가"와 동일한 신규(placeholder) 항목으로
+    /// 등록한다. 이미 매칭되는 항목이 있는 품번(진한 색 칩)은 건드리지 않는다. 새로 만든 항목은 이 태그가
+    /// 붙어있음을 이미 알고 있으므로 Tags에도 이 태그를 채운다. 기존 값을 덮어쓰지 않는 안전한 연산이라
+    /// 확인 대화상자는 없다("배우 동기화"/"시리즈 동기화"와 같은 원칙).</summary>
+    private void ApplyMissingCredits_Click(object sender, RoutedEventArgs e)
+    {
+        var tag = SelectedTag;
+        if (tag is null)
+        {
+            SetStatus("적용할 태그를 먼저 선택하세요.", StatusType.Warning);
+            return;
+        }
+
+        var libraryCodes = _managedItems
+            .Select(m => Path.GetFileNameWithoutExtension(m.FileName))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var missingCodes = tag.Credits.Where(code => !libraryCodes.Contains(code)).ToList();
+        if (missingCodes.Count == 0)
+        {
+            SetStatus("등록할 신규 파일이 없습니다 — 모든 품번에 이미 관리 리스트 항목이 있습니다.", StatusType.Info);
+            return;
+        }
+
+        foreach (var code in missingCodes)
+        {
+            var newItem = new ManagedVideoItem
+            {
+                FileName = code,
+                FullPath = code,
+                ModifiedDate = DateTime.Now,
+                IsPlaceholder = true,
+                IsValid = false,
+                IsExist = false,
+            };
+            newItem.SetTags(new List<string> { tag.Name });
+            _managedItems.Add(newItem);
+        }
+
+        RefreshCreditsPanel(tag);
+        SetStatus($"{missingCodes.Count}개 품번을 신규 파일로 등록했습니다.", StatusType.Success);
+    }
+
     private void AddCreditToTag(TagItem tag, string code)
     {
         if (tag.Credits.Any(c => string.Equals(c, code, StringComparison.OrdinalIgnoreCase)))

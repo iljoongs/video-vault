@@ -159,7 +159,11 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0" Text="품번" FontWeight="Bold" VerticalAlignment="Center"/>
-                    <Button Grid.Column="1" Content="작품 추가" Padding="6,2" Click="AddCredit_Click"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <Button Content="적용" Padding="6,2" Margin="0,0,5,0" Click="ApplyMissingCredits_Click"
+                                ToolTip="관리 리스트에 없는(연한 색) 품번을 신규 파일(파일 없이 추가와 동일)로 등록한다."/>
+                        <Button Content="추가" Padding="6,2" Click="AddCredit_Click"/>
+                    </StackPanel>
                 </Grid>
             </StackPanel>
 
