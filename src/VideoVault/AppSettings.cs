@@ -13,7 +13,6 @@ public class AppSettings
     public string? SeriesFilter { get; set; }
     public List<string> SelectedTags { get; set; } = new();
     public List<string> SelectedActors { get; set; } = new();
-    public bool ShowRemovedItems { get; set; }
     public string? LastFolder { get; set; }
 
     /// <summary>리스트 보기에 표시할 컬럼 키 목록 (파일명은 항상 표시되므로 포함되지 않음).
@@ -65,9 +64,9 @@ public class AppSettings
     /// 다룬다. 키는 창 클래스 이름(예: "PropertiesWindow"), 값은 [Width, Height]. <see cref="WindowSizeMemory"/> 참고.</summary>
     public Dictionary<string, double[]> WindowSizes { get; set; } = new();
 
-    /// <summary>썸네일 뷰어 왼쪽의 빠른 보기 패널(2026-08-31 추가, 사용자 요청) — "모든 파일"/"삭제 파일"/
-    /// "신규 파일" 체크박스 상태. 셋 다 꺼짐이 기본값(기존 필터 동작 그대로 유지).</summary>
-    public bool QuickFilterAllFiles { get; set; }
+    /// <summary>썸네일 뷰어 왼쪽의 빠른 보기 패널(2026-08-31 추가, 2026-08-31 "모든 파일" 제거 + additive 방식으로
+    /// 재설계, 사용자 요청) — "삭제 파일"/"신규 파일" 체크박스 상태. 기본 목록(유효한 항목)에 추가로 얹어서
+    /// 보여줄지 여부이며, 둘 다 꺼짐이 기본값. <see cref="MainWindow.FilterManagedItem"/> 참고.</summary>
     public bool QuickFilterDeletedFiles { get; set; }
     public bool QuickFilterNewFiles { get; set; }
 }
