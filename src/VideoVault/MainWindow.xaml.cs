@@ -49,6 +49,7 @@ public partial class MainWindow : Window
     private bool _quickFilterNormalFiles = true;
     private bool _quickFilterDeletedFiles;
     private bool _quickFilterNewFiles;
+    private bool _quickFilterThumbnailFiles;
 
     private string? _sortProperty;
     private bool _sortAscending = true;
@@ -570,6 +571,8 @@ public partial class MainWindow : Window
         ShowDeletedFilesCheckBox.IsChecked = _quickFilterDeletedFiles;
         _quickFilterNewFiles = settings.QuickFilterNewFiles;
         ShowNewFilesCheckBox.IsChecked = _quickFilterNewFiles;
+        _quickFilterThumbnailFiles = settings.QuickFilterThumbnailFiles;
+        ShowThumbnailFilesCheckBox.IsChecked = _quickFilterThumbnailFiles;
         _managedView.Refresh();
 
         ApplyVisibleColumns(settings.VisibleColumns);
@@ -959,6 +962,7 @@ public partial class MainWindow : Window
                 QuickFilterNormalFiles = _quickFilterNormalFiles,
                 QuickFilterDeletedFiles = _quickFilterDeletedFiles,
                 QuickFilterNewFiles = _quickFilterNewFiles,
+                QuickFilterThumbnailFiles = _quickFilterThumbnailFiles,
                 LastFolder = _currentFolder,
                 VisibleColumns = GetVisibleColumnKeys(),
                 ColumnWidths = GetColumnWidths(),
@@ -1545,11 +1549,11 @@ public partial class MainWindow : Window
         ScheduleSettingsAutoSave();
     }
 
-    /// <summary>썸네일 뷰어 왼쪽 패널의 "일반 파일"/"삭제 파일"/"신규 파일" 빠른 보기 체크박스(2026-08-31 추가,
-    /// 2026-08-31 "제거된 항목도 표시"/"모든 파일" 체크박스를 대체하도록 재설계, 2026-08-31 "일반 파일" 추가).
-    /// 셋 다 서로 독립적인 OR 토글이다 — "일반 파일"(기본 켜짐)은 정상 상태(`IsValid=true`) 항목, "삭제 파일"은
-    /// 제거된(`IsValid=false`) 항목, "신규 파일"은 아직 파일을 보유하지 않은(`IsExist=false`) 항목을 각각
-    /// 보여준다. 자세한 조합 규칙은 <see cref="FilterManagedItem"/> 참고.</summary>
+    /// <summary>썸네일 뷰어 왼쪽 패널의 "일반 파일"/"삭제 파일"/"신규 파일"/"썸네일 파일" 빠른 보기 체크박스(2026-08-31 추가,
+    /// 2026-08-31 "제거된 항목도 표시"/"모든 파일" 체크박스를 대체하도록 재설계, 2026-08-31 "일반 파일"/"썸네일 파일" 추가).
+    /// 넷 다 서로 독립적인 OR 토글이다 — "일반 파일"(기본 켜짐)은 정상 상태(`IsValid=true`) 항목, "삭제 파일"은
+    /// 제거된(`IsValid=false`) 항목, "신규 파일"은 아직 파일을 보유하지 않은(`IsExist=false`) 항목, "썸네일 파일"은
+    /// 썸네일이 지정된(`HasThumbnail=true`) 항목을 각각 보여준다. 자세한 조합 규칙은 <see cref="FilterManagedItem"/> 참고.</summary>
     private void QuickViewFilterCheckBox_Changed(object sender, RoutedEventArgs e)
     {
         if (!IsInitialized)
@@ -1560,6 +1564,7 @@ public partial class MainWindow : Window
         _quickFilterNormalFiles = ShowNormalFilesCheckBox.IsChecked == true;
         _quickFilterDeletedFiles = ShowDeletedFilesCheckBox.IsChecked == true;
         _quickFilterNewFiles = ShowNewFilesCheckBox.IsChecked == true;
+        _quickFilterThumbnailFiles = ShowThumbnailFilesCheckBox.IsChecked == true;
         _managedView.Refresh();
         ScheduleSettingsAutoSave();
     }
@@ -1585,7 +1590,8 @@ public partial class MainWindow : Window
 
         var isVisible = (_quickFilterNormalFiles && item.IsValid) ||
             (_quickFilterDeletedFiles && !item.IsValid) ||
-            (_quickFilterNewFiles && !item.IsExist);
+            (_quickFilterNewFiles && !item.IsExist) ||
+            (_quickFilterThumbnailFiles && item.HasThumbnail);
         if (!isVisible)
         {
             return false;
