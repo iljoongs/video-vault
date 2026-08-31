@@ -83,6 +83,21 @@ public partial class MainWindow : Window
         ManagedIconView.ItemsSource = _managedView;
         EnableLiveShaping();
 
+        // 빠른 보기 패널의 "현재 표시" 개수(2026-08-31 추가, 사용자 요청) — 체크박스 조합 + 라이브 필터링/정렬로
+        // 필터링된 항목이 늘거나 줄 때마다(Refresh로 인한 Reset뿐 아니라 라이브 필터링이 개별 항목을 넣거나
+        // 뺄 때도) _managedView가 INotifyCollectionChanged를 통해 알려주므로, 그 이벤트 하나로 모든 경로를
+        // 다 받는다(체크박스/검색어/태그·배우 필터 변경 각각에 개별로 호출을 추가할 필요가 없음).
+        if (_managedView is INotifyCollectionChanged managedViewChanged)
+        {
+            managedViewChanged.CollectionChanged += (_, _) =>
+            {
+                if (!_suppressAutoSave)
+                {
+                    UpdateVisibleFileCountDisplay();
+                }
+            };
+        }
+
         ManagedListView.AddHandler(GridViewColumnHeader.ClickEvent, new RoutedEventHandler(ManagedListHeader_Click));
         ManagedListView.AddHandler(UIElement.PreviewMouseRightButtonUpEvent, new MouseButtonEventHandler(ManagedListHeader_RightClick), true);
 
@@ -109,6 +124,7 @@ public partial class MainWindow : Window
         LoadInitialData();
         RefreshSeriesFilterComboBox();
         UpdateManagedCountDisplay();
+        UpdateVisibleFileCountDisplay();
     }
 
     /// <summary>
@@ -128,6 +144,8 @@ public partial class MainWindow : Window
         if (liveShaping.CanChangeLiveFiltering)
         {
             liveShaping.LiveFilteringProperties.Add(nameof(ManagedVideoItem.IsValid));
+            liveShaping.LiveFilteringProperties.Add(nameof(ManagedVideoItem.IsExist));
+            liveShaping.LiveFilteringProperties.Add(nameof(ManagedVideoItem.HasThumbnail));
             liveShaping.LiveFilteringProperties.Add(nameof(ManagedVideoItem.FileName));
             liveShaping.LiveFilteringProperties.Add(nameof(ManagedVideoItem.FolderName));
             liveShaping.LiveFilteringProperties.Add(nameof(ManagedVideoItem.Tags));
@@ -754,6 +772,15 @@ public partial class MainWindow : Window
         var withThumbnail = _managedItems.Count(m => m.HasThumbnail);
         var removed = _managedItems.Count(m => !m.IsValid);
         ManagedCountText.Text = $"(전체 {total} / 썸네일 {withThumbnail} / 제거됨 {removed})";
+    }
+
+    /// <summary>빠른 보기 패널 맨 위, "일반 파일" 체크박스 위에 지금 실제로 목록에 표시되고 있는 파일 개수를
+    /// 보여준다(2026-08-31 추가, 사용자 요청) — 빠른 보기 체크박스 조합뿐 아니라 파일명/폴더명 검색어, 태그/배우
+    /// 필터, 시리즈 선택까지 모두 적용된 뒤의 최종 개수다. `_managedView.Cast&lt;object&gt;().Count()`로 필터를
+    /// 통과한 항목만 센다(전체 개수인 `ManagedCountText`와는 다른 값).</summary>
+    private void UpdateVisibleFileCountDisplay()
+    {
+        VisibleFileCountText.Text = $"현재 표시: {_managedView.Cast<object>().Count()}개";
     }
 
     private void MasterTags_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)

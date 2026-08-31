@@ -139,6 +139,8 @@
                     <!-- 빠른 보기 패널(2026-08-31 추가, 2026-08-31 "모든 파일" 삭제 + 나머지 체크박스를 "추가로 더 보여주기" 방식으로 변경 + "일반 파일"/"썸네일 있음"/"썸네일 없음" 추가, 사용자 요청): 일반/삭제/신규/썸네일 있음·없음 체크박스(모두 OR로 결합되는 독립 토글) + 아이콘만 보기 -->
                     <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,10,0" VerticalAlignment="Top">
                         <StackPanel Width="100">
+                            <TextBlock x:Name="VisibleFileCountText" Foreground="Gray" FontSize="11" Margin="0,0,0,6" TextWrapping="Wrap"
+                                       ToolTip="아래 체크박스 조합 + 검색/필터 조건까지 모두 적용한 뒤 현재 목록에 실제로 표시되고 있는 파일 개수."/>
                             <CheckBox x:Name="ShowNormalFilesCheckBox" Content="일반 파일" IsChecked="True" Margin="0,0,0,6"
                                       ToolTip="정상 상태(IsValid=true)인 항목을 보여준다. 끄면 이 항목들이 목록에서 숨겨진다."
                                       Checked="QuickViewFilterCheckBox_Changed" Unchecked="QuickViewFilterCheckBox_Changed"/>
