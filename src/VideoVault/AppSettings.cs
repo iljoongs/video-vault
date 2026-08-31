@@ -65,11 +65,12 @@ public class AppSettings
     public Dictionary<string, double[]> WindowSizes { get; set; } = new();
 
     /// <summary>썸네일 뷰어 왼쪽의 빠른 보기 패널(2026-08-31 추가, 2026-08-31 "모든 파일" 제거 + additive 방식으로
-    /// 재설계 + "일반 파일"/"썸네일 파일" 추가, 사용자 요청) — "일반 파일"/"삭제 파일"/"신규 파일"/"썸네일 파일"
-    /// 체크박스 상태. 넷 다 서로 독립적인 OR 토글이며, "일반 파일"만 기본값이 켜짐(나머지는 꺼짐).
-    /// <see cref="MainWindow.FilterManagedItem"/> 참고.</summary>
+    /// 재설계 + "일반 파일"/"썸네일 파일" 추가 + "썸네일 파일"→"썸네일 있음" 이름 변경/"썸네일 없음" 추가, 사용자 요청)
+    /// — "일반 파일"/"삭제 파일"/"신규 파일"/"썸네일 있음"/"썸네일 없음" 체크박스 상태. 다섯 다 서로 독립적인
+    /// OR 토글이며, "일반 파일"만 기본값이 켜짐(나머지는 꺼짐). <see cref="MainWindow.FilterManagedItem"/> 참고.</summary>
     public bool QuickFilterNormalFiles { get; set; } = true;
     public bool QuickFilterDeletedFiles { get; set; }
     public bool QuickFilterNewFiles { get; set; }
     public bool QuickFilterThumbnailFiles { get; set; }
+    public bool QuickFilterNoThumbnailFiles { get; set; }
 }

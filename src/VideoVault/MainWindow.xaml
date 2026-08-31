@@ -136,7 +136,7 @@
 
                 <!-- 빠른 보기 패널 + 선택된 항목의 썸네일 뷰어 (상단 오른쪽). 썸네일 뷰어는 클릭하면 원본 이미지를 보여주고, 드래그 앤 드롭으로 썸네일을 지정할 수 있다. -->
                 <StackPanel Grid.Row="0" Grid.RowSpan="7" Grid.Column="1" Orientation="Horizontal" Margin="15,0,0,0" VerticalAlignment="Top">
-                    <!-- 빠른 보기 패널(2026-08-31 추가, 2026-08-31 "모든 파일" 삭제 + 나머지 체크박스를 "추가로 더 보여주기" 방식으로 변경 + "일반 파일"/"썸네일 파일" 추가, 사용자 요청): 일반/삭제/신규/썸네일 파일 체크박스(모두 OR로 결합되는 독립 토글) + 아이콘만 보기 -->
+                    <!-- 빠른 보기 패널(2026-08-31 추가, 2026-08-31 "모든 파일" 삭제 + 나머지 체크박스를 "추가로 더 보여주기" 방식으로 변경 + "일반 파일"/"썸네일 있음"/"썸네일 없음" 추가, 사용자 요청): 일반/삭제/신규/썸네일 있음·없음 체크박스(모두 OR로 결합되는 독립 토글) + 아이콘만 보기 -->
                     <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,10,0" VerticalAlignment="Top">
                         <StackPanel Width="100">
                             <CheckBox x:Name="ShowNormalFilesCheckBox" Content="일반 파일" IsChecked="True" Margin="0,0,0,6"
@@ -148,8 +148,11 @@
                             <CheckBox x:Name="ShowNewFilesCheckBox" Content="신규 파일" Margin="0,0,0,6"
                                       ToolTip="아직 실제 파일을 보유하지 않은(IsExist=false) 항목도 함께 보여준다."
                                       Checked="QuickViewFilterCheckBox_Changed" Unchecked="QuickViewFilterCheckBox_Changed"/>
-                            <CheckBox x:Name="ShowThumbnailFilesCheckBox" Content="썸네일 파일" Margin="0,0,0,8"
+                            <CheckBox x:Name="ShowThumbnailFilesCheckBox" Content="썸네일 있음" Margin="0,0,0,6"
                                       ToolTip="썸네일이 지정된(HasThumbnail=true) 항목도 함께 보여준다."
+                                      Checked="QuickViewFilterCheckBox_Changed" Unchecked="QuickViewFilterCheckBox_Changed"/>
+                            <CheckBox x:Name="ShowNoThumbnailFilesCheckBox" Content="썸네일 없음" Margin="0,0,0,8"
+                                      ToolTip="썸네일이 지정되지 않은(HasThumbnail=false) 항목도 함께 보여준다."
                                       Checked="QuickViewFilterCheckBox_Changed" Unchecked="QuickViewFilterCheckBox_Changed"/>
                             <Border Height="1" Background="#E0E0E0" Margin="0,0,0,8"/>
                             <CheckBox x:Name="IconOnlyModeCheckBox" Content="아이콘만 보기"
