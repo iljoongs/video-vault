@@ -132,6 +132,10 @@ public partial class PropertiesWindow : Window
     /// 변경을 모른 채 예전 선택 상태(주로 "(없음)")를 그대로 유지하고 있다가, 다른 항목을 클릭해 이 창이
     /// `SwitchToItem`으로 전환되는 순간 그 예전 선택값을 `_item.Series`에 다시 덮어써서 방금 동기화된
     /// 시리즈가 초기화됐다. `Series`/`Actors`도 같은 방식으로 구독해 해결한다.
+    /// **`Tags`/`Memo`/`Code`/`ReleaseDate` 누락으로 재발**(2026-09-12 발견·수정) — [동영상 파일 관리](../doc/video-file-management.md)의
+    /// 우클릭 "가져오기"가 이 네 필드를 UI를 거치지 않고 직접 덮어쓰는데, 이 switch에 빠져 있어서 가져온 값이
+    /// 화면에 반영되지 않다가 다른 항목으로 선택을 옮기는 순간(`SwitchToItem`의 `TryCommitFormFields`) 예전
+    /// 화면 값(주로 빈 값)이 그대로 되살아나 방금 가져온 정보가 사라지는 것처럼 보였다 — 같은 원인, 같은 해법.
     /// </summary>
     private void ItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -149,6 +153,20 @@ public partial class PropertiesWindow : Window
                 break;
             case nameof(ManagedVideoItem.Actors):
                 SyncSelectedActorsFromItem();
+                break;
+            case nameof(ManagedVideoItem.Tags):
+                BuildTagList();
+                break;
+            case nameof(ManagedVideoItem.Memo):
+                MemoBox.Text = _item.Memo;
+                break;
+            case nameof(ManagedVideoItem.Code):
+                CodeBox.Text = string.IsNullOrEmpty(_item.Code)
+                    ? ManagedVideoItem.DeriveCode(_item.FileName, _item.FullPath)
+                    : _item.Code;
+                break;
+            case nameof(ManagedVideoItem.ReleaseDate):
+                ReleaseDateBox.Text = _item.ReleaseDate;
                 break;
         }
     }

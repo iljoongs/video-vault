@@ -1952,7 +1952,10 @@ public partial class MainWindow : Window
     /// 정보(재생횟수/태그/배우/시리즈/메모/코드/출시일/썸네일)만 복사해온다. 같은 작품을 다른 파일명/확장자로
     /// 다시 구했을 때(품질 재인코딩 등) 새로 스캔된 항목에는 아직 아무 정보가 없으므로, 예전 항목에 쌓아둔
     /// 정보를 새 항목으로 옮기고 예전 항목은 따로 제거하는 흐름으로 쓴다. 품번이 일치하는 다른 항목이 정확히
-    /// 하나일 때만 동작하며, 없거나 여러 개면 안내만 하고 아무것도 바꾸지 않는다.</summary>
+    /// 하나일 때만 동작하며, 없거나 여러 개면 안내만 하고 아무것도 바꾸지 않는다. **썸네일은 경로 문자열만
+    /// 복사하지 않고 실제 파일을 대상 항목 자기 위치로 복사한다**(2026-09-12 버그 수정, <see cref="ImportThumbnailFiles"/>
+    /// 참고) — 그러지 않으면 두 항목이 같은 이미지 파일을 계속 공유하게 되어, 나중에 원본(보통 정리 대상인
+    /// 예전 항목)을 완전삭제하거나 그 파일이 바뀌면 방금 가져온 대상의 썸네일도 함께 망가진다.</summary>
     private void ImportFromSameCode_Click(object sender, RoutedEventArgs e)
     {
         var target = GetSelectedManagedItem();
@@ -1999,11 +2002,81 @@ public partial class MainWindow : Window
         target.Memo = source.Memo;
         target.Code = source.Code;
         target.ReleaseDate = source.ReleaseDate;
-        target.ThumbnailPath = source.ThumbnailPath;
-        target.ThumbnailOriginalPath = source.ThumbnailOriginalPath;
+        ImportThumbnailFiles(source, target);
 
         _managedView.Refresh();
         UpdateSelectedItemDetails();
+    }
+
+    /// <summary>"가져오기"의 썸네일 이전 로직(2026-09-12 수정) — 처음에는 `target.ThumbnailPath`에 `source`의
+    /// 경로 문자열을 그대로 대입했는데, 그러면 두 항목이 같은 실제 이미지 파일을 가리키게 되어 나중에
+    /// `source`(보통 정리 대상인 예전 항목)가 완전삭제·이름변경 등으로 그 파일을 건드리면 `target`의 썸네일도
+    /// 함께 망가지는 문제가 있었다(사용자가 실사용 중 지적). 대상 위치가 원본과 다르면 실제 파일을
+    /// `target`의 자기 위치(동영상과 같은 폴더의 "{파일명}.thumbnail.jpg"/"{파일명}.original{확장자}", 또는
+    /// `target.IsPlaceholder`면 `ThumbnailHelper.PlaceholderThumbnailDir`)로 복사해 `target`이 독립된 파일을
+    /// 갖도록 한다 — 두 항목이 더 이상 같은 파일을 공유하지 않는다.</summary>
+    private static void ImportThumbnailFiles(ManagedVideoItem source, ManagedVideoItem target)
+    {
+        if (string.IsNullOrEmpty(source.ThumbnailPath))
+        {
+            target.ThumbnailPath = null;
+            target.ThumbnailOriginalPath = null;
+            return;
+        }
+
+        var targetDir = target.IsPlaceholder
+            ? ThumbnailHelper.PlaceholderThumbnailDir
+            : Path.GetDirectoryName(target.FullPath);
+
+        if (string.IsNullOrEmpty(targetDir))
+        {
+            // 대상 폴더를 알 수 없는 극단적인 경우(placeholder가 아닌데 FullPath에 폴더 정보가 없음) —
+            // 복사할 위치를 특정할 수 없으므로 안전하게 원본 참조만 그대로 유지한다.
+            target.ThumbnailPath = source.ThumbnailPath;
+            target.ThumbnailOriginalPath = source.ThumbnailOriginalPath;
+            return;
+        }
+
+        Directory.CreateDirectory(targetDir);
+        var targetNameNoExt = Path.GetFileNameWithoutExtension(target.FileName);
+
+        target.ThumbnailPath = CopyThumbnailFileIfNeeded(source.ThumbnailPath, Path.Combine(targetDir, $"{targetNameNoExt}.thumbnail.jpg"));
+
+        if (!string.IsNullOrEmpty(source.ThumbnailOriginalPath))
+        {
+            var originalExtension = Path.GetExtension(source.ThumbnailOriginalPath);
+            target.ThumbnailOriginalPath = CopyThumbnailFileIfNeeded(source.ThumbnailOriginalPath, Path.Combine(targetDir, $"{targetNameNoExt}.original{originalExtension}"));
+        }
+        else
+        {
+            target.ThumbnailOriginalPath = null;
+        }
+    }
+
+    /// <summary>이미 대상 위치를 가리키고 있으면(드문 경우) 그대로 두고, 아니면 실제 파일을 복사한 뒤 새
+    /// 경로를 돌려준다. 원본 파일을 디스크에서 찾을 수 없거나 복사에 실패하면(권한 등) 조용히 예전 경로를
+    /// 그대로 반환한다 — 가져오기 자체를 실패시키지는 않되, 결과적으로 여전히 예전 위치를 참조하게 된다.</summary>
+    private static string? CopyThumbnailFileIfNeeded(string sourcePath, string destPath)
+    {
+        if (!File.Exists(sourcePath))
+        {
+            return sourcePath;
+        }
+
+        if (string.Equals(Path.GetFullPath(sourcePath), Path.GetFullPath(destPath), StringComparison.OrdinalIgnoreCase))
+        {
+            return sourcePath;
+        }
+
+        try
+        {
+            File.Copy(sourcePath, destPath, overwrite: true);
+            return destPath;
+        }
+        catch
+        {
+            return sourcePath;
+        }
     }
 
     private void TagsCell_Click(object sender, MouseButtonEventArgs e)
