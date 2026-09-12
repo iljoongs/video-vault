@@ -326,7 +326,7 @@
                                                 Height="{Binding Source={x:Static local:IconSizeSettings.Current}, Path=ThumbnailHeight}"
                                                 Background="#F0F0F0">
                                             <Grid>
-                                                <Image Source="{Binding ThumbnailPath, Converter={StaticResource ThumbnailPathConverter}, ConverterParameter=240}" Stretch="UniformToFill">
+                                                <Image Source="{Binding ThumbnailPath, Converter={StaticResource ThumbnailPathConverter}, ConverterParameter=240}" Stretch="Uniform">
                                                     <Image.Style>
                                                         <Style TargetType="Image">
                                                             <Setter Property="Visibility" Value="Collapsed"/>
