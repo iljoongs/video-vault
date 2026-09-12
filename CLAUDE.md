@@ -113,6 +113,7 @@ video-vault/
 - `AddCreditWindow.xaml` / `AddCreditWindow.xaml.cs` — 배우/시리즈의 Credits에 새 품번을 추가하는 대화상자(배우/시리즈 관리 창이 공유) → [배우 관리](doc/actor-management.md)
 - `ActorCreditSync.cs` — 관리 리스트 항목의 `Actors`와 배우 마스터 목록의 `Credits`를 상호 동기화 → [배우 관리](doc/actor-management.md)
 - `SeriesCreditSync.cs` — 관리 리스트 항목의 `Series`와 시리즈 마스터 목록의 `Credits`를 상호 동기화 → [시리즈 관리](doc/series-management.md)
+- `TagCreditSync.cs` (2026-09-13 추가) — 관리 리스트 항목의 `Tags`와 태그 마스터 목록의 `Credits`를 상호 동기화(`ActorCreditSync`와 동일한 패턴) → [태그 관리](doc/tag-management.md)
 - `ActorInfoWindow.xaml` / `ActorInfoWindow.xaml.cs` — 배우의 이름/출생년도/키/신체정보 편집 대화상자 → [배우 관리](doc/actor-management.md)
 - `ImageLoadHelper.cs` — 로컬 파일 경로에서 `BitmapImage`를 즉시 전부 읽어들이는 공용 로직(파일 잠금 회피) → [공통 관리](doc/common-management.md)
 - `WindowsIconHelper.cs` — Windows 셸 아이콘을 가져오는 헬퍼 → [공통 관리](doc/common-management.md)

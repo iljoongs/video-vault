@@ -360,7 +360,7 @@ public partial class PropertiesWindow : Window
             return;
         }
 
-        if (RenameHelper.TryRenameManagedItemTo(_item, newName, _masterActors, _masterSeries))
+        if (RenameHelper.TryRenameManagedItemTo(_item, newName, _masterTags, _masterActors, _masterSeries))
         {
             FullPathText.Text = _item.FullPath;
             CodeBox.Text = ManagedVideoItem.DeriveCode(_item.FileName, _item.FullPath);
@@ -427,7 +427,7 @@ public partial class PropertiesWindow : Window
 
     private void ChangeFileButton_Click(object sender, RoutedEventArgs e)
     {
-        if (RenameHelper.TryEditFullPath(this, _item, _masterActors, _masterSeries))
+        if (RenameHelper.TryEditFullPath(this, _item, _masterTags, _masterActors, _masterSeries))
         {
             FileNameText.Text = Path.GetFileNameWithoutExtension(_item.FileName);
             FileExtensionText.Text = TrimLeadingDot(Path.GetExtension(_item.FileName));
@@ -777,10 +777,15 @@ public partial class PropertiesWindow : Window
             return false;
         }
 
-        // _item.Actors를 덮어쓰기 전에, 화면에서 빠진(사용자가 ✕로 제거한) 배우를 미리 찾아둔다 —
-        // 그 배우의 Credits에서도 이 파일의 품번을 제거해야 하므로(ActorCreditSync.OnActorRemovedFromItem).
+        // _item.Actors/Tags를 덮어쓰기 전에, 화면에서 빠진(사용자가 ✕/체크 해제로 제거한) 배우/태그를 미리
+        // 찾아둔다 — 그 배우/태그의 Credits에서도 이 파일의 품번을 제거해야 하므로
+        // (ActorCreditSync.OnActorRemovedFromItem/TagCreditSync.OnTagRemovedFromItem, 2026-09-13 태그 추가).
         var removedActors = _item.Actors
             .Where(a => !_selectedActors.Contains(a, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+        var newTags = _tagItems.Where(t => t.IsSelected).Select(t => t.Tag).ToList();
+        var removedTags = _item.Tags
+            .Where(t => !newTags.Contains(t, StringComparer.OrdinalIgnoreCase))
             .ToList();
 
         _item.PlayCount = playCount;
@@ -790,12 +795,17 @@ public partial class PropertiesWindow : Window
             ? selectedSeries
             : string.Empty;
         _item.Memo = MemoBox.Text.Trim();
-        _item.SetTags(_tagItems.Where(t => t.IsSelected).Select(t => t.Tag).ToList());
+        _item.SetTags(newTags);
         _item.SetActors(_selectedActors.ToList());
 
         foreach (var removedActor in removedActors)
         {
             ActorCreditSync.OnActorRemovedFromItem(_item, removedActor, _masterActors);
+        }
+
+        foreach (var removedTag in removedTags)
+        {
+            TagCreditSync.OnTagRemovedFromItem(_item, removedTag, _masterTags);
         }
 
         if (_isNewItem)

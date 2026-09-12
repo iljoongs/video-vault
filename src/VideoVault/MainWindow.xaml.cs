@@ -1094,6 +1094,51 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// 각 태그의 Credits(품번 목록)를 기준으로, 관리 리스트에서 그 품번과 일치하지만 아직 그 태그가
+    /// `Tags`에 지정되어 있지 않은 항목에 태그를 추가한다(2026-09-13 추가, `SyncActors_Click`과 동일한
+    /// 방향의 동기화 — Credits → 관리 리스트, 태그도 배우처럼 다대다라 "충돌" 개념이 없다). 새로 추가한
+    /// `TagCreditSync`가 막는 것은 **앞으로**(rename/완전삭제 시점)의 드리프트뿐이라, 이 클래스가 생기기
+    /// 전부터 이미 쌓여 있던 기존 데이터의 어긋남(태그 Credits는 알고 있지만 실제 항목의 Tags에는 아직
+    /// 반영 안 된 경우)은 이 버튼으로 한 번에 정리한다. 관리 리스트에 없는 품번(Credits에는 있지만 아직
+    /// 파일이 없는 "알려진 품번")은 건드리지 않는다 — 정상적인 상태이므로 조용히 건너뛴다.
+    /// </summary>
+    private void SyncTags_Click(object sender, RoutedEventArgs e)
+    {
+        var byCode = _managedItems
+            .GroupBy(i => Path.GetFileNameWithoutExtension(i.FileName), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+
+        var updated = new List<string>();
+
+        foreach (var tag in _masterTags)
+        {
+            foreach (var code in tag.Credits)
+            {
+                if (!byCode.TryGetValue(code, out var matches))
+                {
+                    continue;
+                }
+
+                foreach (var item in matches)
+                {
+                    if (!item.Tags.Any(t => string.Equals(t, tag.Name, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        var updatedTags = new List<string>(item.Tags) { tag.Name };
+                        item.SetTags(updatedTags);
+                        updated.Add($"{item.FileName} → '{tag.Name}'");
+                    }
+                }
+            }
+        }
+
+        var message = updated.Count == 0
+            ? "동기화할 항목이 없습니다. 모든 항목이 이미 최신 상태입니다."
+            : BuildSyncResultMessage(updated, new List<string>());
+
+        MessageBox.Show(message, "태그 동기화 결과", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    /// <summary>
     /// 각 배우의 Credits(품번 목록)를 기준으로, 관리 리스트에서 그 품번과 일치하지만 아직 그 배우가
     /// `Actors`에 지정되어 있지 않은 항목에 배우를 추가한다(2026-08-10 추가, `SyncSeries_Click`과 동일한
     /// 방향의 동기화 — Credits → 관리 리스트). 배우는 시리즈와 달리 여러 명을 동시에 지정할 수 있는
@@ -1929,7 +1974,7 @@ public partial class MainWindow : Window
 
         // 바뀐 위치로 스크롤해서 따라가는 것은 ManagedItem_PropertyChanged(FileName 변경 감지)가 처리한다 —
         // F2/우클릭 이 경로든 속성 창의 파일명 편집이든 공유하는 동일한 로직이다.
-        RenameHelper.TryRenameManagedItem(this, item, _masterActors, _masterSeries);
+        RenameHelper.TryRenameManagedItem(this, item, _masterTags, _masterActors, _masterSeries);
     }
 
     // ===================== 관리 리스트: 속성 / 재생 / 제거 =====================
@@ -2318,11 +2363,20 @@ public partial class MainWindow : Window
         {
             foreach (var item in items)
             {
-                // 완전삭제는 항목 자체가 사라지므로, 이 파일의 품번이 배우/시리즈 관리 창의 작품(Credits)
-                // 목록에 "파일 없음" 상태로 고아처럼 남지 않도록 먼저 정리한다(2026-08-16 추가).
+                // _managedItems에서 먼저 제거한 뒤에 Credits 정리를 호출해야 한다(2026-09-13 버그 수정 —
+                // 순서가 반대일 때 실제로 재현됨). 태그/배우/시리즈 관리 창이 열려 있고 마침 이 항목의
+                // 태그/배우/시리즈가 선택되어 있으면, 아래 OnFileDeleted가 tag.SetCredits(...)로 Credits를
+                // 갱신하는 순간 그 창의 PropertyChanged 구독(RefreshCreditsPanel → SyncCreditsFromManagedItems)이
+                // 동기적으로 즉시 실행되는데, 이 시점에 item이 아직 _managedItems에 남아있고 item.Tags/Actors/
+                // Series도 그대로면 SyncCreditsFromManagedItems가 "아직 반영 안 된 항목"으로 오인해 방금 지운
+                // 품번을 곧바로 되살려버려 — 실제로 재현/확인함(관리 창을 열어두고 그 태그를 선택한 채로
+                // 완전삭제하면 Credits에서 전혀 지워지지 않았다). 항목을 먼저 컬렉션에서 빼면 재동기화 시점에
+                // 더 이상 스캔 대상이 아니므로 되살아나지 않는다 — 이 파일의 품번이 태그/배우/시리즈 관리 창의
+                // 작품(Credits) 목록에 "파일 없음" 상태로 고아처럼 남지 않도록 정리하는 원래 목적은 그대로 유지된다.
+                _managedItems.Remove(item);
+                TagCreditSync.OnFileDeleted(item, _masterTags);
                 ActorCreditSync.OnFileDeleted(item, _masterActors);
                 SeriesCreditSync.OnFileDeleted(item, _masterSeries);
-                _managedItems.Remove(item);
             }
             _managedView.Refresh();
             UpdateSelectedItemDetails();

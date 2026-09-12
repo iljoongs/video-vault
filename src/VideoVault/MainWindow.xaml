@@ -225,6 +225,7 @@
 
                 <!-- 배우/시리즈 동기화: "속성" 버튼 밑에 배치(2026-08-10 위치 변경 — 예전에는 위 줄 배우 관리/시리즈 관리 옆에 있었음) -->
                 <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,0,0,10">
+                    <Button Content="태그 동기화" Padding="10,5" Margin="0,0,5,0" Click="SyncTags_Click" ToolTip="각 태그의 품번(Credits) 목록을 기준으로, 아직 그 태그가 지정되지 않은 관리 리스트 항목에 태그를 추가한다."/>
                     <Button Content="배우 동기화" Padding="10,5" Margin="0,0,5,0" Click="SyncActors_Click" ToolTip="각 배우의 품번(Credits) 목록을 기준으로, 아직 그 배우가 지정되지 않은 관리 리스트 항목에 배우를 추가한다."/>
                     <Button Content="시리즈 동기화" Padding="10,5" Margin="0,0,15,0" Click="SyncSeries_Click" ToolTip="각 시리즈의 품번(Credits) 목록을 기준으로, 시리즈가 아직 비어있는 관리 리스트 항목에 해당 시리즈를 채워 넣는다."/>
                     <Button Content="선택한 파일 이동" Padding="10,5" Click="MoveSelectedFiles_Click" ToolTip="선택한 각 항목을, 그 항목의 '코드' 값으로 된 하위 폴더(현재 폴더와 같은 위치)로 이동한다. 속성 창의 '파일 이동' 버튼과 동일한 동작을 여러 항목에 한 번에 적용한다."/>
