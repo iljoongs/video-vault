@@ -96,9 +96,7 @@
             <MenuItem Header="도구(_T)">
                 <MenuItem Header="태그 관리(_T)" Click="ManageTags_Click"/>
                 <MenuItem Header="배우 관리(_A)" Click="ManageActors_Click"/>
-                <MenuItem Header="배우 동기화(_G)" Click="SyncActors_Click"/>
                 <MenuItem Header="시리즈 관리(_S)" Click="ManageSeries_Click"/>
-                <MenuItem Header="시리즈 동기화(_Y)" Click="SyncSeries_Click"/>
             </MenuItem>
             </Menu>
         </DockPanel>
