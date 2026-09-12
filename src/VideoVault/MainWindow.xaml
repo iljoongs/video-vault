@@ -20,6 +20,7 @@
             <MenuItem Header="재생" Click="PlayManaged_Click"/>
             <MenuItem Header="이름변경 (F2)" Click="RenameManaged_Click"/>
             <MenuItem Header="속성 (F1)" Click="PropertiesManaged_Click"/>
+            <MenuItem Header="가져오기" Click="ImportFromSameCode_Click" ToolTip="같은 품번의 다른 항목에서 파일 경로(파일명 등)를 뺀 나머지 정보(재생횟수/태그/배우/시리즈/메모/코드/출시일/썸네일)를 이 항목으로 복사한다."/>
             <Separator/>
             <MenuItem Header="복구" Click="RestoreManaged_Click"/>
             <MenuItem Header="삭제 (Del)" Click="RemoveFromManagedList_Click"/>

@@ -1946,6 +1946,66 @@ public partial class MainWindow : Window
         OpenPropertiesWindow(item);
     }
 
+    /// <summary>우클릭 메뉴 "가져오기"(2026-09-12 추가, 사용자 요청) — 같은 품번(`ProductCode`, 파일명에서
+    /// 확장자만 뺀 값)의 다른 항목에서 파일 경로 관련 정보(`FileName`/`FullPath`/`SizeBytes`/`ModifiedDate`/
+    /// `IsValid`/`IsExist`/`IsPlaceholder`, 즉 실제 디스크 파일 자체와 묶인 값들)는 그대로 두고 나머지
+    /// 정보(재생횟수/태그/배우/시리즈/메모/코드/출시일/썸네일)만 복사해온다. 같은 작품을 다른 파일명/확장자로
+    /// 다시 구했을 때(품질 재인코딩 등) 새로 스캔된 항목에는 아직 아무 정보가 없으므로, 예전 항목에 쌓아둔
+    /// 정보를 새 항목으로 옮기고 예전 항목은 따로 제거하는 흐름으로 쓴다. 품번이 일치하는 다른 항목이 정확히
+    /// 하나일 때만 동작하며, 없거나 여러 개면 안내만 하고 아무것도 바꾸지 않는다.</summary>
+    private void ImportFromSameCode_Click(object sender, RoutedEventArgs e)
+    {
+        var target = GetSelectedManagedItem();
+        if (target is null)
+        {
+            MessageBox.Show("정보를 가져올 항목을 선택하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var targetCode = target.ProductCode;
+        var candidates = _managedItems
+            .Where(m => !ReferenceEquals(m, target) &&
+                string.Equals(m.ProductCode, targetCode, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (candidates.Count == 0)
+        {
+            MessageBox.Show($"'{targetCode}' 품번의 다른 항목을 찾을 수 없습니다.", "가져오기", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (candidates.Count > 1)
+        {
+            var names = string.Join("\n", candidates.Select(c => c.FileName));
+            MessageBox.Show(
+                $"'{targetCode}' 품번의 항목이 여러 개 있어 어느 것을 가져올지 정할 수 없습니다.\n하나만 남기고 정리한 뒤 다시 시도하세요:\n{names}",
+                "가져오기", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var source = candidates[0];
+        var confirm = MessageBox.Show(
+            $"'{source.FileName}' 항목의 정보(재생횟수/태그/배우/시리즈/메모/코드/출시일/썸네일)를\n'{target.FileName}'(으)로 가져옵니다. 파일 경로는 바뀌지 않으며, 대상 항목의 기존 정보는 덮어써집니다.\n계속하시겠습니까?",
+            "가져오기 확인", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (confirm != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        target.PlayCount = source.PlayCount;
+        target.SetTags(new List<string>(source.Tags));
+        target.SetActors(new List<string>(source.Actors));
+        target.Series = source.Series;
+        target.Memo = source.Memo;
+        target.Code = source.Code;
+        target.ReleaseDate = source.ReleaseDate;
+        target.ThumbnailPath = source.ThumbnailPath;
+        target.ThumbnailOriginalPath = source.ThumbnailOriginalPath;
+
+        _managedView.Refresh();
+        UpdateSelectedItemDetails();
+    }
+
     private void TagsCell_Click(object sender, MouseButtonEventArgs e)
     {
         if (sender is FrameworkElement { DataContext: ManagedVideoItem item })
