@@ -1732,14 +1732,77 @@ public partial class MainWindow : Window
         }
 
         var iconMode = IconViewModeRadio.IsChecked == true;
+        var fromView = iconMode ? (ListBox)ManagedListView : ManagedIconView;
+        var toView = iconMode ? (ListBox)ManagedIconView : ManagedListView;
+        var anchorItem = GetFirstVisibleItem(fromView);
+
         ManagedListView.Visibility = iconMode ? Visibility.Collapsed : Visibility.Visible;
         ManagedIconView.Visibility = iconMode ? Visibility.Visible : Visibility.Collapsed;
 
         ListViewModeMenuItem.IsChecked = !iconMode;
         IconViewModeMenuItem.IsChecked = iconMode;
 
+        if (anchorItem is not null)
+        {
+            // 방금 Visible로 바뀐 뷰는 아직 레이아웃이 갱신되지 않아 ScrollIntoView가 조용히 씹히므로
+            // (위 SelectAndScrollToManagedItem 호출부의 동일한 문제 참고) 레이아웃 반영 뒤로 미룬다.
+            Dispatcher.BeginInvoke(new Action(() => toView.ScrollIntoView(anchorItem)), DispatcherPriority.ContextIdle);
+        }
+
         UpdateSelectedItemDetails();
         ScheduleSettingsAutoSave();
+    }
+
+    /// <summary>
+    /// 리스트 보기/아이콘 보기 전환 시 스크롤 위치를 보존하기 위해, 전환 직전 뷰에서 현재 화면 맨 위에
+    /// 걸쳐 있는 항목을 찾는다(2026-09-27 추가). 리스트 보기(한 줄에 항목 하나)와 아이콘 보기(그리드,
+    /// 한 줄에 여러 카드)는 항목 높이·줄당 개수가 서로 달라 픽셀 오프셋을 그대로 옮기는 방식으로는
+    /// 같은 항목을 보여줄 수 없으므로, "화면에 보이는 항목"을 기준으로 전환 후 뷰에서 그 항목으로
+    /// 다시 스크롤한다(<see cref="ScrollIntoView"/>). 가상화 때문에 현재 실체화된(렌더링된) 컨테이너만
+    /// 검사 대상이 된다 — 화면 밖 항목은 애초에 후보가 아니므로 문제되지 않는다.
+    /// </summary>
+    private static object? GetFirstVisibleItem(ListBox view)
+    {
+        if (FindVisualChild<ScrollViewer>(view) is not { } scrollViewer)
+        {
+            return null;
+        }
+
+        foreach (var item in view.Items)
+        {
+            if (view.ItemContainerGenerator.ContainerFromItem(item) is not FrameworkElement container)
+            {
+                continue;
+            }
+
+            var top = container.TransformToAncestor(scrollViewer).Transform(new Point(0, 0)).Y;
+            if (top >= -1 && top < scrollViewer.ViewportHeight)
+            {
+                return item;
+            }
+        }
+
+        return null;
+    }
+
+    private static T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
+    {
+        var childCount = VisualTreeHelper.GetChildrenCount(parent);
+        for (var i = 0; i < childCount; i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T typedChild)
+            {
+                return typedChild;
+            }
+
+            if (FindVisualChild<T>(child) is { } found)
+            {
+                return found;
+            }
+        }
+
+        return null;
     }
 
     private void IconSizeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
