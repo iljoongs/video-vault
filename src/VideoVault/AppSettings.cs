@@ -12,6 +12,11 @@ public class AppSettings
     public string? FolderFilter { get; set; }
     public string? SeriesFilter { get; set; }
     public List<string> SelectedTags { get; set; } = new();
+
+    /// <summary>true면 선택된 태그를 모두 가진 항목만 보여준다(AND). false(기본값)면 하나라도
+    /// 가진 항목을 보여준다(OR, 기존 동작).</summary>
+    public bool TagFilterMatchAll { get; set; }
+
     public List<string> SelectedActors { get; set; } = new();
     public string? LastFolder { get; set; }
 

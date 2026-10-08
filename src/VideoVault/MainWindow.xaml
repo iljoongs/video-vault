@@ -538,6 +538,8 @@
                         <Border Background="White" BorderBrush="Gray" BorderThickness="1" Padding="10">
                             <StackPanel Width="220">
                                 <TextBlock Text="태그 필터" FontWeight="Bold" Margin="0,0,0,5"/>
+                                <CheckBox x:Name="TagFilterMatchAllCheckBox" Content="모두 포함 (AND)" Margin="0,0,0,5"
+                                          ToolTip="켜면 체크한 태그를 모두 가진 항목만, 끄면(기본값) 하나라도 가진 항목을 보여준다."/>
                                 <ScrollViewer MaxHeight="240" VerticalScrollBarVisibility="Auto">
                                     <ItemsControl x:Name="TagFilterList">
                                         <ItemsControl.ItemTemplate>

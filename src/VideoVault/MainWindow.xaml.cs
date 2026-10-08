@@ -44,6 +44,7 @@ public partial class MainWindow : Window
     private string? _seriesFilter;
     private HashSet<string> _selectedTags = new(StringComparer.OrdinalIgnoreCase);
     private List<TagCheckItem> _tagCheckItems = new();
+    private bool _tagFilterMatchAll;
     private HashSet<string> _selectedActorFilter = new(StringComparer.OrdinalIgnoreCase);
     private List<ActorFilterCheckItem> _actorFilterCheckItems = new();
     private bool _quickFilterNormalFiles = true;
@@ -583,6 +584,7 @@ public partial class MainWindow : Window
         FolderFilterTextBox.Text = _folderFilter ?? string.Empty;
         _seriesFilter = settings.SeriesFilter;
         _selectedTags = new HashSet<string>(settings.SelectedTags, StringComparer.OrdinalIgnoreCase);
+        _tagFilterMatchAll = settings.TagFilterMatchAll;
         _selectedActorFilter = new HashSet<string>(settings.SelectedActors, StringComparer.OrdinalIgnoreCase);
         _quickFilterNormalFiles = settings.QuickFilterNormalFiles;
         ShowNormalFilesCheckBox.IsChecked = _quickFilterNormalFiles;
@@ -988,6 +990,7 @@ public partial class MainWindow : Window
                 MainWindowLeft = (WindowState == WindowState.Normal ? Left : RestoreBounds.Left),
                 MainWindowTop = (WindowState == WindowState.Normal ? Top : RestoreBounds.Top),
                 SelectedTags = _selectedTags.ToList(),
+                TagFilterMatchAll = _tagFilterMatchAll,
                 SelectedActors = _selectedActorFilter.ToList(),
                 QuickFilterNormalFiles = _quickFilterNormalFiles,
                 QuickFilterDeletedFiles = _quickFilterDeletedFiles,
@@ -1469,6 +1472,7 @@ public partial class MainWindow : Window
         _seriesFilter = null;
         SeriesFilterComboBox.SelectedItem = AllSeriesLabel;
         _selectedTags.Clear();
+        _tagFilterMatchAll = false;
         _selectedActorFilter.Clear();
         _managedView.Refresh();
         ScheduleSettingsAutoSave();
@@ -1569,6 +1573,7 @@ public partial class MainWindow : Window
             .ToList();
 
         TagFilterList.ItemsSource = _tagCheckItems;
+        TagFilterMatchAllCheckBox.IsChecked = _tagFilterMatchAll;
         TagFilterPopup.PlacementTarget = target;
         TagFilterPopup.IsOpen = true;
     }
@@ -1579,6 +1584,7 @@ public partial class MainWindow : Window
             .Where(t => t.IsSelected)
             .Select(t => t.Tag)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        _tagFilterMatchAll = TagFilterMatchAllCheckBox.IsChecked == true;
         _managedView.Refresh();
         TagFilterPopup.IsOpen = false;
         ScheduleSettingsAutoSave();
@@ -1587,6 +1593,7 @@ public partial class MainWindow : Window
     private void TagFilterClear_Click(object sender, RoutedEventArgs e)
     {
         _selectedTags.Clear();
+        _tagFilterMatchAll = false;
         _managedView.Refresh();
         TagFilterPopup.IsOpen = false;
         ScheduleSettingsAutoSave();
@@ -1704,9 +1711,15 @@ public partial class MainWindow : Window
             return false;
         }
 
-        if (_selectedTags.Count > 0 && !item.Tags.Any(t => _selectedTags.Contains(t)))
+        if (_selectedTags.Count > 0)
         {
-            return false;
+            var tagMatch = _tagFilterMatchAll
+                ? _selectedTags.All(t => item.Tags.Contains(t, StringComparer.OrdinalIgnoreCase))
+                : item.Tags.Any(t => _selectedTags.Contains(t));
+            if (!tagMatch)
+            {
+                return false;
+            }
         }
 
         if (_selectedActorFilter.Count > 0 && !item.Actors.Any(a => _selectedActorFilter.Contains(a)))
